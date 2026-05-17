@@ -470,6 +470,69 @@ async def test_productos_habituales_aislamiento(
 
 
 @pytest.mark.integration
+@pytest.mark.req("REQ-PED-007")
+async def test_historial_cliente(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """Historial muestra link_generado + respondio_link en orden fecha desc."""
+    from sqlalchemy import text as sqltext
+
+    from megarepartos.infra.auth import sign_link_token
+
+    empresa, admin = await _seed_admin(db_session)
+    cliente = await make_cliente(db_session, empresa=empresa, nombre_completo="Juan")
+    headers = {
+        "Authorization": f"Bearer {_token(settings, usuario_id=admin.id, empresa_id=empresa.id)}"
+    }
+
+    # Genera link (persiste link_generado).
+    r1 = await app_client.post(f"/api/clientes/{cliente.id}/generar-link", headers=headers)
+    assert r1.status_code == 200
+
+    # Cliente responde (persiste respondio_link).
+    await db_session.execute(sqltext("SET LOCAL ROLE megarepartos_app"))
+    token = sign_link_token(settings, cliente_id=cliente.id)
+    r2 = await app_client.post(
+        f"/api/publico/c/{token}/respuesta",
+        json={"accion": "confirmo", "observacion": "ok"},
+    )
+    assert r2.status_code == 200
+
+    resp = await app_client.get(f"/api/clientes/{cliente.id}/historial", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    acciones = {item["accion"] for item in body["items"]}
+    assert acciones == {"link_generado", "respondio_link"}
+
+
+@pytest.mark.integration
+@pytest.mark.isolation
+async def test_historial_cliente_ajeno_404(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """REQ-MT-009: pedir historial de cliente ajeno → 404."""
+    empresa_a = await make_empresa(db_session, nombre="A")
+    admin_a = await make_usuario(db_session, empresa=empresa_a, rol="admin")
+    empresa_b = await make_empresa(db_session, nombre="B")
+    usuario_b = await make_usuario(db_session, empresa=empresa_b)
+    await set_tenant_context(db_session, empresa_id=empresa_b.id, usuario_id=usuario_b.id)
+    cliente_b = await make_cliente(db_session, empresa=empresa_b)
+
+    headers = {
+        "Authorization": f"Bearer {_token(settings, usuario_id=admin_a.id, empresa_id=empresa_a.id)}"
+    }
+    resp = await app_client.get(f"/api/clientes/{cliente_b.id}/historial", headers=headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.integration
 async def test_generar_links_bulk(
     app_client: AsyncClient,
     db_session: AsyncSession,

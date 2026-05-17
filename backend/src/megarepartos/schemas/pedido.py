@@ -64,3 +64,17 @@ class PendienteOut(BaseModel):
 class PendientesListOut(BaseModel):
     items: list[PendienteOut]
     total: int
+
+
+class HistorialEventoOut(BaseModel):
+    """Una entrada del historial de un cliente."""
+
+    evento_id: uuid.UUID
+    accion: str  # "respondio_link" | "link_generado"
+    fecha: datetime
+    detalles: dict
+
+
+class HistorialClienteOut(BaseModel):
+    items: list[HistorialEventoOut]
+    total: int

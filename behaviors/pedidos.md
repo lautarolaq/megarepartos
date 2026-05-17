@@ -44,6 +44,12 @@ hacer follow-up de los que no respondieron.
 persisten un `evento_dominio` con `accion="link_generado"` para alimentar
 esta vista.
 
+### REQ-PED-007
+`GET /api/clientes/{id}/historial` (cualquier rol autenticado) devuelve
+las últimas N (default 20) interacciones del cliente: `link_generado` y
+`respondio_link`, orden `fecha DESC`. Para que el admin pueda ver el
+historial completo de un cliente desde la vista de detalle.
+
 ## No-requisitos
 
 - No es una tabla `pedido` con CRUD propio.
