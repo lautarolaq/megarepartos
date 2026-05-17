@@ -107,10 +107,7 @@ export function ProductosPage() {
       )}
 
       <CrearProductoModal open={openCreate} onClose={() => setOpenCreate(false)} />
-      <EditarProductoModal
-        producto={productoEditar}
-        onClose={() => setProductoEditar(null)}
-      />
+      <EditarProductoModal producto={productoEditar} onClose={() => setProductoEditar(null)} />
     </div>
   );
 }
@@ -138,12 +135,14 @@ function EditarProductoModal({
   }, [producto]);
 
   const actualizar = useMutation({
-    mutationFn: async () =>
-      api.patch(`/api/productos/${producto!.id}`, {
+    mutationFn: async () => {
+      if (!producto) throw new Error("missing producto");
+      return api.patch(`/api/productos/${producto.id}`, {
         nombre,
         precio_unitario_default: precio || null,
         es_retornable: retornable,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["productos"] });
       onClose();
@@ -183,7 +182,10 @@ function EditarProductoModal({
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={() => actualizar.mutate()} disabled={!nombre.trim() || actualizar.isPending}>
+          <Button
+            onClick={() => actualizar.mutate()}
+            disabled={!nombre.trim() || actualizar.isPending}
+          >
             {actualizar.isPending ? "Guardando…" : "Guardar"}
           </Button>
         </div>

@@ -437,6 +437,39 @@ async def test_REQ_CLI_012_delete_soft_idempotente(
 
 
 @pytest.mark.integration
+@pytest.mark.isolation
+async def test_productos_habituales_aislamiento(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """REQ-MT-009: GET y PUT /api/clientes/{id}/productos-habituales de cliente
+    ajeno devuelve 404.
+    """
+    empresa_a = await make_empresa(db_session, nombre="A")
+    admin_a = await make_usuario(db_session, empresa=empresa_a, rol="admin")
+    empresa_b = await make_empresa(db_session, nombre="B")
+    usuario_b = await make_usuario(db_session, empresa=empresa_b)
+    await set_tenant_context(db_session, empresa_id=empresa_b.id, usuario_id=usuario_b.id)
+    cliente_b = await make_cliente(db_session, empresa=empresa_b)
+
+    headers = {
+        "Authorization": f"Bearer {_token(settings, usuario_id=admin_a.id, empresa_id=empresa_a.id)}"
+    }
+    r_get = await app_client.get(
+        f"/api/clientes/{cliente_b.id}/productos-habituales", headers=headers
+    )
+    assert r_get.status_code == 404
+    r_put = await app_client.put(
+        f"/api/clientes/{cliente_b.id}/productos-habituales",
+        headers=headers,
+        json={"items": []},
+    )
+    assert r_put.status_code == 404
+
+
+@pytest.mark.integration
 async def test_generar_links_bulk(
     app_client: AsyncClient,
     db_session: AsyncSession,
@@ -454,9 +487,7 @@ async def test_generar_links_bulk(
     headers = {
         "Authorization": f"Bearer {_token(settings, usuario_id=admin.id, empresa_id=empresa.id)}"
     }
-    resp = await app_client.post(
-        "/api/clientes/generar-links-bulk", headers=headers, json={}
-    )
+    resp = await app_client.post("/api/clientes/generar-links-bulk", headers=headers, json={})
     assert resp.status_code == 200
     body = resp.json()
     ids = sorted(item["cliente_id"] for item in body["items"])

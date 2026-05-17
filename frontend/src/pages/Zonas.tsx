@@ -142,13 +142,15 @@ function EditarZonaModal({ zona, onClose }: { zona: Zona | null; onClose: () => 
   }, [zona]);
 
   const actualizar = useMutation({
-    mutationFn: async () =>
-      api.patch(`/api/zonas/${zona!.id}`, {
+    mutationFn: async () => {
+      if (!zona) throw new Error("missing zona");
+      return api.patch(`/api/zonas/${zona.id}`, {
         nombre,
         dia_visita: dia || null,
         camioneta_asignada: camioneta || null,
         color_display: color || null,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["zonas"] });
       onClose();
@@ -203,7 +205,10 @@ function EditarZonaModal({ zona, onClose }: { zona: Zona | null; onClose: () => 
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={() => actualizar.mutate()} disabled={!nombre.trim() || actualizar.isPending}>
+          <Button
+            onClick={() => actualizar.mutate()}
+            disabled={!nombre.trim() || actualizar.isPending}
+          >
             {actualizar.isPending ? "Guardando…" : "Guardar"}
           </Button>
         </div>
