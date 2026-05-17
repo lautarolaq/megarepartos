@@ -4,6 +4,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
+  Check,
+  Circle,
   Clock,
   Inbox,
   LogOut,
@@ -13,7 +15,7 @@ import {
   Users,
   Warehouse,
 } from "lucide-react";
-import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 
 interface MeResponse {
   usuario: { id: string; email: string; nombre: string; rol: string };
@@ -133,53 +135,165 @@ interface PedidoStats {
   clientes_activos: number;
 }
 
+interface ListResp<T> {
+  items: T[];
+  total?: number;
+}
+
 export function DashboardIndex() {
-  const { data, isLoading } = useQuery({
+  const { data: stats } = useQuery({
     queryKey: ["pedidos-stats"],
     queryFn: async (): Promise<PedidoStats> => (await api.get("/api/pedidos/stats")).data,
     refetchInterval: 60_000,
   });
 
+  const { data: productos } = useQuery({
+    queryKey: ["productos"],
+    queryFn: async (): Promise<ListResp<unknown>> => (await api.get("/api/productos")).data,
+  });
+
+  const { data: clientes } = useQuery({
+    queryKey: ["clientes-count"],
+    queryFn: async (): Promise<ListResp<unknown>> => (await api.get("/api/clientes?limit=1")).data,
+  });
+
+  const productosCount = productos?.items.length ?? 0;
+  const clientesTotal = clientes?.total ?? clientes?.items.length ?? 0;
+  const pedidosSemana = stats?.pedidos_semana ?? 0;
+
+  const onboardingCompleto = productosCount > 0 && clientesTotal > 0 && pedidosSemana > 0;
+
   return (
     <div>
       <h2 className="text-2xl font-semibold tracking-tight">Resumen</h2>
-      {isLoading && <p className="mt-4 text-slate-500">Cargando…</p>}
-      {data && (
+
+      {stats && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Pedidos hoy"
-            value={data.pedidos_hoy}
-            hint={`${data.confirmados_hoy} confirmado${data.confirmados_hoy === 1 ? "" : "s"}`}
+            value={stats.pedidos_hoy}
+            hint={`${stats.confirmados_hoy} confirmado${stats.confirmados_hoy === 1 ? "" : "s"}`}
             tone="sky"
           />
           <StatCard
             label="Últimos 7 días"
-            value={data.pedidos_semana}
+            value={stats.pedidos_semana}
             hint="respuestas recibidas"
             tone="emerald"
           />
           <StatCard
             label="Clientes activos"
-            value={data.clientes_activos}
+            value={stats.clientes_activos}
             hint="en tu base"
             tone="slate"
           />
           <StatCard
             label="Tasa hoy"
             value={
-              data.pedidos_hoy === 0
+              stats.pedidos_hoy === 0
                 ? "—"
-                : `${Math.round((data.confirmados_hoy / data.pedidos_hoy) * 100)}%`
+                : `${Math.round((stats.confirmados_hoy / stats.pedidos_hoy) * 100)}%`
             }
             hint="confirmaron del total"
             tone="amber"
           />
         </div>
       )}
-      <p className="mt-8 text-sm text-slate-500">
-        Mandá links a tus clientes desde <strong>Clientes</strong>, las respuestas aparecen en{" "}
-        <strong>Pedidos</strong>.
+
+      {!onboardingCompleto && (
+        <Onboarding
+          tieneProductos={productosCount > 0}
+          tieneClientes={clientesTotal > 0}
+          tienePedidos={pedidosSemana > 0}
+        />
+      )}
+
+      {onboardingCompleto && (
+        <p className="mt-8 text-sm text-slate-500">
+          Mandá links a tus clientes desde <strong>Clientes</strong>, las respuestas aparecen en{" "}
+          <strong>Pedidos</strong>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Onboarding({
+  tieneProductos,
+  tieneClientes,
+  tienePedidos,
+}: {
+  tieneProductos: boolean;
+  tieneClientes: boolean;
+  tienePedidos: boolean;
+}) {
+  const steps = [
+    {
+      done: tieneProductos,
+      label: "Cargá los productos que vendés",
+      hint: "Bidón 20L, Soda 1.5L, etc. — los que el cliente puede pedir.",
+      cta: "Ir a Productos",
+      to: "/dashboard/productos",
+    },
+    {
+      done: tieneClientes,
+      label: "Cargá tus clientes",
+      hint: "Nombre, teléfono y zona. Podés asignar productos habituales.",
+      cta: "Ir a Clientes",
+      to: "/dashboard/clientes",
+    },
+    {
+      done: tienePedidos,
+      label: "Mandá tu primer link",
+      hint: "Desde el listado de clientes, ícono de link → abre WhatsApp con el mensaje listo.",
+      cta: "Ir a Clientes",
+      to: "/dashboard/clientes",
+    },
+  ];
+
+  return (
+    <div className="mt-8 rounded-xl border border-sky-200 bg-sky-50 p-5">
+      <h3 className="font-semibold text-sky-900">Para empezar</h3>
+      <p className="mt-1 text-sm text-sky-700">
+        Una vez que tengas estas tres cosas, esta caja desaparece y el dashboard pasa a modo
+        operativo.
       </p>
+      <ol className="mt-4 flex flex-col gap-3">
+        {steps.map((step, i) => (
+          <li
+            key={step.label}
+            className={`flex items-start gap-3 rounded-lg border bg-white p-3 ${
+              step.done ? "border-emerald-200" : "border-slate-200"
+            }`}
+          >
+            <span
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                step.done ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {step.done ? <Check size={14} /> : <Circle size={10} fill="currentColor" />}
+            </span>
+            <div className="flex-1">
+              <p
+                className={`text-sm font-medium ${
+                  step.done ? "text-slate-500 line-through" : "text-slate-800"
+                }`}
+              >
+                {i + 1}. {step.label}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">{step.hint}</p>
+            </div>
+            {!step.done && (
+              <Link
+                to={step.to}
+                className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700"
+              >
+                {step.cta}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
