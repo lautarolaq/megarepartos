@@ -93,6 +93,46 @@ USING (
 Esto recursivamente respeta la cadena (el SELECT interno también pasa por
 RLS de cliente).
 
+### REQ-MT-009
+
+`assert_endpoint_isolated(app_client, *, method, url, factory, ...)` (helper
+en `tests/integration/_isolation_helpers.py`) implementa el patrón estándar
+de test de aislamiento para un endpoint cualquiera:
+
+1. Crea empresa A + usuario admin A + data via `factory(session, empresa_a)`.
+2. Crea empresa B + usuario admin B + data via `factory(session, empresa_b)`.
+3. Emite access token para usuario A.
+4. Hace la request con ese token a `url`.
+5. Verifica que en la respuesta solo aparecen IDs de data de A (no de B).
+6. Si el método es destructivo (PATCH/PUT/DELETE) sobre un ID de B, verifica
+   que devuelve 404 y que la data de B sigue intacta.
+
+Reemplaza ~30 líneas de boilerplate por una llamada de una línea.
+
+### REQ-MT-010
+
+Property-based test (con `hypothesis`) sobre `cliente`:
+
+- Genera N empresas (2..5) cada una con M clientes (0..10).
+- Para cada empresa, hace `set_tenant_context` y `SELECT * FROM cliente`.
+- Invariante: la cardinalidad y el conjunto de IDs devueltos coincide
+  **exactamente** con los clientes creados para esa empresa.
+
+### REQ-MT-011
+
+`scripts/check_endpoint_isolation.py` parsea los routers en
+`backend/src/megarepartos/api/*.py` y lista los endpoints que dependen de
+`authenticated_session`. Para cada uno verifica que exista al menos un test
+con `@pytest.mark.isolation` que mencione el path (o un alias documentado).
+
+Los endpoints `/api/auth/*` no requieren test de aislamiento (son pre-tenant).
+La lista de exenciones está hardcoded en el script.
+
+### REQ-MT-012
+
+El check se ejecuta en el job `behavior-coverage` de CI (`ci.yml`). Falla el
+build si encuentra endpoints autenticados sin test de aislamiento.
+
 ## No-requisitos
 
 - No hay bypass aplicación-level. Los pocos lugares que necesitan operar
