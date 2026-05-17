@@ -1,0 +1,62 @@
+id: TASK-009
+nombre: "CRUD envases"
+tipo: feature
+sprint: 2
+prioridad: alta
+
+contexto: |
+  Los envases retornables son los recipientes asociados a productos retornables
+  (ej. "Botellón de plástico 20L"). Se referencian desde `producto.envase_id`.
+  Sólo admin puede modificar el catálogo (mismo patrón que TASK-008 productos).
+
+  Mismo patrón end-to-end: schemas → domain → api → tests con aislamiento +
+  audit + roles.
+
+comportamiento:
+  - "REQ-ENV-001: GET /api/envases lista los envases de la empresa, ordenados por nombre."
+  - "REQ-ENV-002: GET /api/envases?activo=true filtra por activo."
+  - "REQ-ENV-003: GET /api/envases/{id} ajeno devuelve 404."
+  - "REQ-ENV-004: POST /api/envases crea (admin only)."
+  - "REQ-ENV-005: PATCH /api/envases/{id} actualiza solo lo enviado."
+  - "REQ-ENV-006: DELETE /api/envases/{id} soft delete + idempotente."
+  - "REQ-ENV-007: POST como operador devuelve 403."
+  - "REQ-ENV-008: Cada POST/PATCH/DELETE genera evento_dominio."
+
+no_debe:
+  - "Permitir hard delete."
+  - "Borrar envases referenciados por productos activos sin advertencia (TASK posterior)."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/schemas/envase.py"
+  - "backend/src/megarepartos/domain/envases.py"
+  - "backend/src/megarepartos/api/envases.py"
+  - "behaviors/envases.md"
+  - "backend/tests/integration/test_envases_api.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/main.py"
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"
+
+tests:
+  - "test_REQ_ENV_001_listado_ordenado_por_nombre"
+  - "test_REQ_ENV_003_detalle_ajeno_404"
+  - "test_REQ_ENV_004_post_admin_crea"
+  - "test_REQ_ENV_005_patch_solo_provided"
+  - "test_REQ_ENV_006_delete_soft_idempotente"
+  - "test_REQ_ENV_007_post_operador_403"
+  - "test_REQ_ENV_008_eventos_generados"
+
+aceptacion:
+  - "make test verde"
+  - "scripts/check_endpoint_isolation.py reporta los 5 nuevos endpoints cubiertos"
+
+depende_de:
+  - "TASK-008"
+
+notas: |
+  El SPEC sección 5 define envase con: id, empresa_id, nombre,
+  valor_referencial, activo. No tiene orden_display ni precio_unitario_default
+  como producto.
