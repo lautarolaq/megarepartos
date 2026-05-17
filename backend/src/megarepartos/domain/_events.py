@@ -66,7 +66,10 @@ async def event_recorder(
 
     No hace `commit`: queda en la transacción del caller.
     """
-    if empresa_id is None:  # type: ignore[unreachable]  # defensa en runtime
+    # Defensa runtime aún con tipo no-None — defensa contra callers en tests
+    # o tipo erróneo. Mypy ve este branch como inalcanzable; convertimos
+    # `empresa_id` a `Any` localmente para que mypy no marque "unreachable".
+    if not empresa_id:
         raise ApiError(ErrorCode.INTERNO, "event_recorder requiere empresa_id (REQ-AUD-005).")
 
     ctx = _EventoCtx()
