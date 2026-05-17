@@ -50,3 +50,17 @@ class PedidoStatsOut(BaseModel):
     confirmados_hoy: int
     pedidos_semana: int
     clientes_activos: int
+
+
+class PendienteOut(BaseModel):
+    """Cliente al que se le mandó el link y todavía no respondió."""
+
+    cliente_id: uuid.UUID
+    cliente_nombre: str
+    cliente_telefono: str
+    fecha_link: datetime
+
+
+class PendientesListOut(BaseModel):
+    items: list[PendienteOut]
+    total: int

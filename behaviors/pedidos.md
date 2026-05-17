@@ -34,6 +34,16 @@ Cliente, Teléfono, Acción, Productos (llenos), Envases vacíos a recibir,
 Observación, Fecha. Acepta los mismos filtros que el listado (`accion`,
 `desde_dias`). Default: `accion=confirmo&desde_dias=7`.
 
+### REQ-PED-006
+`GET /api/pedidos/pendientes` (admin) lista clientes con `link_generado`
+en los últimos `desde_dias` (default 7) y **sin** `respondio_link`
+posterior a ese link. Implementa SPEC 6.9 — para que la sodería pueda
+hacer follow-up de los que no respondieron.
+
+`POST /api/clientes/{id}/generar-link` y `POST /api/clientes/generar-links-bulk`
+persisten un `evento_dominio` con `accion="link_generado"` para alimentar
+esta vista.
+
 ## No-requisitos
 
 - No es una tabla `pedido` con CRUD propio.

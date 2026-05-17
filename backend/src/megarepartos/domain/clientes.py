@@ -362,3 +362,23 @@ async def listar_clientes_para_links(
         ClienteParaLink(id=c.id, nombre_completo=c.nombre_completo, telefono=c.telefono)
         for c in items
     ]
+
+
+async def registrar_link_generado(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    usuario_id: uuid.UUID,
+    cliente_id: uuid.UUID,
+) -> None:
+    """Persiste un evento `cliente.link_generado` — base de la vista Pendientes
+    (SPEC 6.9). Llamado tanto por generar-link como por generar-links-bulk.
+    """
+    async with event_recorder(
+        session,
+        empresa_id=empresa_id,
+        usuario_id=usuario_id,
+        entidad_tipo="cliente",
+        accion="link_generado",
+    ) as ev:
+        ev.entidad_id = cliente_id
