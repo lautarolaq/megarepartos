@@ -32,6 +32,8 @@ class LinkPublicoOut(BaseModel):
 
     empresa: EmpresaPublica
     cliente: ClientePublico
+    zona_nombre: str | None = None
+    zona_dia_visita: str | None = None
     productos_habituales: list[ProductoHabitualPublico]
 
 

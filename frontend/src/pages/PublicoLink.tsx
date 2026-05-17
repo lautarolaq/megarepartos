@@ -15,8 +15,20 @@ interface ProductoHabitual {
 interface LinkPublico {
   empresa: { nombre: string };
   cliente: { nombre_completo: string; telefono: string };
+  zona_nombre: string | null;
+  zona_dia_visita: string | null;
   productos_habituales: ProductoHabitual[];
 }
+
+const DIA_LABEL: Record<string, string> = {
+  lunes: "el lunes",
+  martes: "el martes",
+  miercoles: "el miércoles",
+  jueves: "el jueves",
+  viernes: "el viernes",
+  sabado: "el sábado",
+  domingo: "el domingo",
+};
 
 type Estado = "pregunta" | "confirmado" | "rechazado";
 
@@ -169,15 +181,20 @@ export function PublicoLinkPage() {
     });
   }
 
+  const diaTxt =
+    data.zona_dia_visita && DIA_LABEL[data.zona_dia_visita]
+      ? DIA_LABEL[data.zona_dia_visita]
+      : "mañana";
+  const zonaTxt = data.zona_nombre ? ` por ${data.zona_nombre}` : " por tu zona";
+  const cuando = `Pasamos ${diaTxt}${zonaTxt}.`;
+
   return (
     <main className="flex min-h-screen flex-col items-center bg-sky-50 px-4 py-8 text-slate-800">
       <div className="w-full max-w-md">
         <p className="text-sm uppercase tracking-wider text-sky-700">{data.empresa.nombre}</p>
         <h1 className="mt-2 text-3xl font-semibold leading-tight">¡Hola, {primerNombre}!</h1>
         <p className="mt-4 text-base text-slate-600">
-          {tieneHabituales
-            ? "Mañana pasamos por tu zona. Confirmá tu pedido:"
-            : "Mañana pasamos por tu zona. ¿Te llevamos tu pedido?"}
+          {cuando} {tieneHabituales ? "Confirmá tu pedido:" : "¿Te llevamos tu pedido?"}
         </p>
 
         {tieneHabituales && (
