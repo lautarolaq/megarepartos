@@ -8,7 +8,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from megarepartos.models.cliente import Cliente
 from megarepartos.models.empresa import Empresa
+from megarepartos.models.producto import Producto
 from megarepartos.models.usuario import Usuario
 
 
@@ -50,3 +52,48 @@ async def make_usuario(
     session.add(usuario)
     await session.flush()
     return usuario
+
+
+async def make_cliente(
+    session: AsyncSession,
+    *,
+    empresa: Empresa,
+    **overrides: Any,
+) -> Cliente:
+    """Crea un cliente. **El caller debe haber seteado el tenant context** a la
+    empresa (vía `set_tenant_context`) — sino la RLS bloquea el INSERT.
+    """
+    defaults: dict[str, Any] = {
+        "empresa_id": empresa.id,
+        "nombre_completo": f"Cliente {uuid.uuid4().hex[:6]}",
+        "telefono": f"+5493515{secrets.token_hex(3)}",
+        "modalidad": "consulta",
+        "condicion_pago": "contado",
+        "activo": True,
+    }
+    defaults.update(overrides)
+    cliente = Cliente(**defaults)
+    session.add(cliente)
+    await session.flush()
+    return cliente
+
+
+async def make_producto(
+    session: AsyncSession,
+    *,
+    empresa: Empresa,
+    **overrides: Any,
+) -> Producto:
+    """Igual que `make_cliente`: requiere tenant context seteado."""
+    defaults: dict[str, Any] = {
+        "empresa_id": empresa.id,
+        "nombre": f"Producto {uuid.uuid4().hex[:6]}",
+        "es_retornable": False,
+        "activo": True,
+        "orden_display": 0,
+    }
+    defaults.update(overrides)
+    producto = Producto(**defaults)
+    session.add(producto)
+    await session.flush()
+    return producto
