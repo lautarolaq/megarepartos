@@ -1,0 +1,38 @@
+# Excluir del upload a Cloud Build — no son necesarios para el build de Docker.
+
+.git
+.gitignore
+.github
+
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Node
+node_modules
+frontend/dist
+frontend/.vite
+
+# Local env / secrets
+.env
+.env.*
+*.local
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Extension (no se incluye en el container)
+extension/
+
+# Docs y misc
+docs/
+*.md

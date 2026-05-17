@@ -318,6 +318,9 @@ function CampanaModal({
   const [extensionDisponible, setExtensionDisponible] = useState(false);
   const [mensaje, setMensaje] = useState(mensajeBase);
 
+  // Resetear estado SOLO cuando el modal se abre. Si incluimos mensajeBase en las
+  // deps, la response de /api/empresa/me llegando después de "Generar links"
+  // reseteaba items=null y volvíamos al paso 1 perdiendo los links generados.
   useEffect(() => {
     if (open) {
       setZonaId(zonaIdInicial);
@@ -325,10 +328,15 @@ function CampanaModal({
       setEnviados(new Set());
       setErroresAuto(new Map());
       setAutoEnEjecucion(false);
-      setMensaje(mensajeBase);
       setExtensionDisponible(isExtensionInstalled());
     }
-  }, [open, zonaIdInicial, mensajeBase]);
+  }, [open, zonaIdInicial]);
+
+  // Sincronizar el mensaje con el default de la empresa cuando llegue. Es OK
+  // que esto reaccione a `open` también — solo cambia `mensaje`, no `items`.
+  useEffect(() => {
+    if (open) setMensaje(mensajeBase);
+  }, [open, mensajeBase]);
 
   const generar = useMutation({
     mutationFn: async () => {
