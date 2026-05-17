@@ -3,6 +3,7 @@ import { ClientesPage } from "@/pages/Clientes";
 import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
 import { EnvasesPage } from "@/pages/Envases";
 import { LoginPage } from "@/pages/Login";
+import { PedidosPage } from "@/pages/Pedidos";
 import { ProductosPage } from "@/pages/Productos";
 import { PublicoLinkPage } from "@/pages/PublicoLink";
 import { UsuariosPage } from "@/pages/Usuarios";
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/c/:token" element={<PublicoLinkPage />} />
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route index element={<DashboardIndex />} />
+        <Route path="pedidos" element={<PedidosPage />} />
         <Route path="productos" element={<ProductosPage />} />
         <Route path="envases" element={<EnvasesPage />} />
         <Route path="zonas" element={<ZonasPage />} />

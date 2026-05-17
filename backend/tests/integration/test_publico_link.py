@@ -138,6 +138,49 @@ async def test_REQ_LINK_005_post_respuesta_ok(
 
 
 @pytest.mark.integration
+@pytest.mark.req("REQ-LINK-006")
+async def test_REQ_LINK_006_respuesta_persiste_evento(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """La respuesta del cliente queda persistida como `evento_dominio`."""
+    from sqlalchemy import select
+
+    from megarepartos.models.evento import EventoDominio
+
+    empresa = await make_empresa(db_session)
+    admin = await make_usuario(db_session, empresa=empresa)
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    cliente = await make_cliente(db_session, empresa=empresa)
+    await db_session.execute(text("SET LOCAL ROLE megarepartos_app"))
+
+    token = sign_link_token(settings, cliente_id=cliente.id)
+    resp = await app_client.post(
+        f"/api/publico/c/{token}/respuesta",
+        json={"accion": "confirmo", "observacion": "Después de las 15hs"},
+    )
+    assert resp.status_code == 200
+
+    # Volver a setear tenant para que RLS deje ver el evento.
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    evento = (
+        await db_session.execute(
+            select(EventoDominio).where(
+                EventoDominio.entidad_id == cliente.id,
+                EventoDominio.accion == "respondio_link",
+            )
+        )
+    ).scalar_one()
+    assert evento.empresa_id == empresa.id
+    assert evento.usuario_id is None
+    assert evento.entidad_tipo == "cliente"
+    assert evento.detalles_jsonb["accion"] == "confirmo"
+    assert evento.detalles_jsonb["observacion"] == "Después de las 15hs"
+
+
+@pytest.mark.integration
 @pytest.mark.req("REQ-LINK-008")
 async def test_REQ_LINK_008_admin_genera_link(
     app_client: AsyncClient,
