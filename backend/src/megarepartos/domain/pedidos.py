@@ -62,10 +62,12 @@ async def listar_pedidos(
     offset: int,
     accion: str | None = None,
     desde_dias: int | None = None,
+    q: str | None = None,
 ) -> tuple[list[PedidoRow], int]:
     """REQ-LINK-007: lista respuestas paginadas, orden fecha desc.
 
-    Filtros opcionales: `accion` ∈ {"confirmo", "rechazo"} y `desde_dias` rolling.
+    Filtros opcionales: `accion` ∈ {"confirmo", "rechazo"}, `desde_dias`
+    rolling, y `q` para buscar por nombre/teléfono del cliente.
     """
     base_filters = [
         EventoDominio.empresa_id == empresa_id,
@@ -77,6 +79,9 @@ async def listar_pedidos(
     if desde_dias is not None:
         cutoff = datetime.now(UTC) - timedelta(days=desde_dias)
         base_filters.append(EventoDominio.fecha >= cutoff)
+    if q:
+        like = f"%{q.strip()}%"
+        base_filters.append((Cliente.nombre_completo.ilike(like)) | (Cliente.telefono.ilike(like)))
 
     base = (
         select(

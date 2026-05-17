@@ -1,7 +1,8 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Download, MessageSquare, Printer, Send, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Download, MessageSquare, Printer, Search, Send, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 interface ProductoPedido {
   producto_id: string;
@@ -52,14 +53,22 @@ const FECHA_DIAS: Record<FiltroFecha, number | null> = {
 export function PedidosPage() {
   const [filtroAccion, setFiltroAccion] = useState<FiltroAccion>("todos");
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("semana");
+  const [q, setQ] = useState("");
+  const [qDebounced, setQDebounced] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["pedidos", filtroAccion, filtroFecha],
+    queryKey: ["pedidos", filtroAccion, filtroFecha, qDebounced],
     queryFn: async (): Promise<PedidoListResp> => {
       const params: Record<string, string | number> = {};
       if (filtroAccion !== "todos") params.accion = filtroAccion;
       const dias = FECHA_DIAS[filtroFecha];
       if (dias !== null) params.desde_dias = dias;
+      if (qDebounced) params.q = qDebounced;
       return (await api.get("/api/pedidos", { params })).data;
     },
     refetchInterval: 30_000,
@@ -71,6 +80,7 @@ export function PedidosPage() {
     else params.accion = "confirmo";
     const dias = FECHA_DIAS[filtroFecha];
     if (dias !== null) params.desde_dias = dias;
+    if (qDebounced) params.q = qDebounced;
     const resp = await api.get<Blob>("/api/pedidos/export.csv", {
       params,
       responseType: "blob",
@@ -137,6 +147,16 @@ export function PedidosPage() {
             { value: "rechazo", label: "Rechazaron" },
           ]}
         />
+        <div className="relative flex-1 min-w-[14rem] max-w-sm">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Buscar cliente…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </div>
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Cargando…</p>}
@@ -205,7 +225,14 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <header className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate font-semibold text-slate-800">{pedido.cliente_nombre}</h3>
+          <h3 className="truncate font-semibold">
+            <RouterLink
+              to={`/dashboard/clientes/${pedido.cliente_id}`}
+              className="text-slate-800 hover:text-sky-600 hover:underline"
+            >
+              {pedido.cliente_nombre}
+            </RouterLink>
+          </h3>
           <p className="text-xs text-slate-500">{pedido.cliente_telefono}</p>
         </div>
         <div className="flex flex-col items-end gap-1">

@@ -259,3 +259,42 @@ async def test_listar_pedidos_paginacion(
     assert body["limit"] == 2
     assert body["offset"] == 1
     assert len(body["items"]) == 2
+
+
+@pytest.mark.integration
+@pytest.mark.req("REQ-PED-003")
+async def test_listar_pedidos_busca_por_nombre(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    empresa = await make_empresa(db_session)
+    admin = await make_usuario(db_session, empresa=empresa, rol="admin")
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    cliente_a = await make_cliente(db_session, empresa=empresa, nombre_completo="Juan Lopez")
+    cliente_b = await make_cliente(db_session, empresa=empresa, nombre_completo="Maria Garcia")
+    await db_session.execute(text("SET LOCAL ROLE megarepartos_app"))
+
+    for c in (cliente_a, cliente_b):
+        token = sign_link_token(settings, cliente_id=c.id)
+        await app_client.post(f"/api/publico/c/{token}/respuesta", json={"accion": "confirmo"})
+
+    tok, _ = issue_access_token(
+        settings=settings, usuario_id=admin.id, empresa_id=empresa.id, rol="admin"
+    )
+    headers = {"Authorization": f"Bearer {tok}"}
+
+    # Búsqueda por nombre.
+    r = (await app_client.get("/api/pedidos?q=Lopez", headers=headers)).json()
+    assert r["total"] == 1
+    assert r["items"][0]["cliente_nombre"] == "Juan Lopez"
+
+    # Case-insensitive (ILIKE).
+    r = (await app_client.get("/api/pedidos?q=marIA", headers=headers)).json()
+    assert r["total"] == 1
+    assert r["items"][0]["cliente_nombre"] == "Maria Garcia"
+
+    # Sin matches.
+    r = (await app_client.get("/api/pedidos?q=NoExiste", headers=headers)).json()
+    assert r["total"] == 0
