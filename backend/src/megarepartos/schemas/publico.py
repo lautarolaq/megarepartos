@@ -18,17 +18,37 @@ class ClientePublico(BaseModel):
     telefono: str
 
 
+class ProductoHabitualPublico(BaseModel):
+    """Un producto que el cliente compra habitualmente."""
+
+    producto_id: str
+    nombre: str
+    cantidad_habitual: int
+    es_retornable: bool
+
+
 class LinkPublicoOut(BaseModel):
     """Lo que el cliente ve al abrir el link."""
 
     empresa: EmpresaPublica
     cliente: ClientePublico
+    productos_habituales: list[ProductoHabitualPublico]
+
+
+class ProductoSolicitado(BaseModel):
+    """Item en la respuesta de confirmar pedido."""
+
+    producto_id: str
+    cantidad_llenos: int = 0
+    cantidad_vacios: int = 0  # solo aplica si el producto es retornable
 
 
 class RespuestaIn(BaseModel):
     """Payload del POST de respuesta del cliente."""
 
     accion: Literal["confirmo", "rechazo"]
+    productos: list[ProductoSolicitado] = []
+    observacion: str | None = None
     datos: dict[str, Any] = {}
 
 

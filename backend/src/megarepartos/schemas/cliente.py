@@ -58,3 +58,23 @@ class ClienteListOut(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ProductoHabitualItem(BaseModel):
+    producto_id: uuid.UUID
+    cantidad: int = Field(ge=0)
+
+
+class ProductoHabitualItemOut(BaseModel):
+    producto_id: uuid.UUID
+    cantidad: int
+    nombre: str
+    es_retornable: bool
+
+
+class SetProductosHabitualesIn(BaseModel):
+    items: list[ProductoHabitualItem]
+
+
+class ProductosHabitualesOut(BaseModel):
+    items: list[ProductoHabitualItemOut]

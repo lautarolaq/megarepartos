@@ -31,6 +31,9 @@ from megarepartos.schemas.cliente import (
     ClienteListOut,
     ClienteOut,
     ClienteUpdate,
+    ProductoHabitualItemOut,
+    ProductosHabitualesOut,
+    SetProductosHabitualesIn,
 )
 from megarepartos.schemas.publico import GenerarLinkOut
 
@@ -135,6 +138,97 @@ async def borrar(
         cliente_id=cliente_id,
     )
     return Response(status_code=204)
+
+
+@router.get("/{cliente_id}/productos-habituales", response_model=ProductosHabitualesOut)
+async def listar_productos_habituales(
+    cliente_id: uuid.UUID,
+    claims: ClaimsDep,
+    session: SessionDep,
+) -> ProductosHabitualesOut:
+    """Devuelve los productos habituales del cliente."""
+    from sqlalchemy import select
+
+    from megarepartos.models.cliente import ProductoHabitual
+    from megarepartos.models.producto import Producto
+
+    await obtener_cliente(session, empresa_id=claims.empresa_id, cliente_id=cliente_id)
+    rows = (
+        await session.execute(
+            select(
+                ProductoHabitual.producto_id,
+                ProductoHabitual.cantidad,
+                Producto.nombre,
+                Producto.es_retornable,
+            )
+            .join(Producto, Producto.id == ProductoHabitual.producto_id)
+            .where(ProductoHabitual.cliente_id == cliente_id)
+            .order_by(Producto.nombre.asc())
+        )
+    ).all()
+    return ProductosHabitualesOut(
+        items=[
+            ProductoHabitualItemOut(
+                producto_id=r[0], cantidad=r[1], nombre=r[2], es_retornable=r[3]
+            )
+            for r in rows
+        ]
+    )
+
+
+@router.put("/{cliente_id}/productos-habituales", response_model=ProductosHabitualesOut)
+async def set_productos_habituales(
+    cliente_id: uuid.UUID,
+    payload: SetProductosHabitualesIn,
+    admin_claims: AdminDep,
+    session: SessionDep,
+) -> ProductosHabitualesOut:
+    """Reemplaza la lista de productos habituales del cliente (admin)."""
+    from sqlalchemy import delete, select
+
+    from megarepartos.models.cliente import ProductoHabitual
+    from megarepartos.models.producto import Producto
+
+    await obtener_cliente(session, empresa_id=admin_claims.empresa_id, cliente_id=cliente_id)
+
+    # Verificar que todos los productos pertenezcan a la empresa.
+    if payload.items:
+        producto_ids = [item.producto_id for item in payload.items]
+        rows = (
+            (
+                await session.execute(
+                    select(Producto.id).where(
+                        Producto.id.in_(producto_ids),
+                        Producto.empresa_id == admin_claims.empresa_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        encontrados = set(rows)
+        for pid in producto_ids:
+            if pid not in encontrados:
+                from megarepartos.infra.errors import ApiError, ErrorCode
+
+                raise ApiError(
+                    ErrorCode.VALIDACION_SEMANTICA,
+                    "Algún producto no existe o no pertenece a la empresa.",
+                )
+
+    # Replace strategy: delete + insert.
+    await session.execute(delete(ProductoHabitual).where(ProductoHabitual.cliente_id == cliente_id))
+    for item in payload.items:
+        session.add(
+            ProductoHabitual(
+                cliente_id=cliente_id,
+                producto_id=item.producto_id,
+                cantidad=item.cantidad,
+            )
+        )
+    await session.flush()
+
+    return await listar_productos_habituales(cliente_id, admin_claims, session)
 
 
 @router.post("/{cliente_id}/generar-link", response_model=GenerarLinkOut)
