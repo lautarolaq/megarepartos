@@ -58,3 +58,26 @@ class GenerarLinkOut(BaseModel):
     url: str
     token: str
     expira_en_dias: int
+
+
+class LinkBulkItem(BaseModel):
+    """Un cliente + su link público en la respuesta bulk."""
+
+    cliente_id: str
+    nombre_completo: str
+    telefono: str
+    url: str
+
+
+class GenerarLinksBulkIn(BaseModel):
+    """Body de `POST /api/clientes/generar-links-bulk` (admin).
+
+    Opcional: filtra por zona. Si no se pasa nada, devuelve para TODOS los
+    clientes activos de la empresa (cuidado con el peso si la base es grande).
+    """
+
+    zona_id: str | None = None
+
+
+class GenerarLinksBulkOut(BaseModel):
+    items: list[LinkBulkItem]

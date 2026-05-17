@@ -35,7 +35,12 @@ from megarepartos.schemas.cliente import (
     ProductosHabitualesOut,
     SetProductosHabitualesIn,
 )
-from megarepartos.schemas.publico import GenerarLinkOut
+from megarepartos.schemas.publico import (
+    GenerarLinkOut,
+    GenerarLinksBulkIn,
+    GenerarLinksBulkOut,
+    LinkBulkItem,
+)
 
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
 
@@ -251,3 +256,43 @@ async def generar_link(
         token=token,
         expira_en_dias=LINK_TOKEN_DEFAULT_TTL_SECONDS // (24 * 60 * 60),
     )
+
+
+@router.post("/generar-links-bulk", response_model=GenerarLinksBulkOut)
+async def generar_links_bulk(
+    payload: GenerarLinksBulkIn,
+    admin_claims: AdminDep,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> GenerarLinksBulkOut:
+    """Genera links públicos para todos los clientes activos (opcionalmente
+    filtrados por zona). Útil para campañas masivas — el admin ve la lista
+    y va abriendo WhatsApp uno a uno.
+    """
+    zona_id: uuid.UUID | None = None
+    if payload.zona_id:
+        try:
+            zona_id = uuid.UUID(payload.zona_id)
+        except ValueError:
+            from megarepartos.infra.errors import ApiError, ErrorCode
+
+            raise ApiError(ErrorCode.VALIDACION_INPUT, "zona_id inválido.") from None
+
+    clientes, _ = await listar_clientes(
+        session,
+        empresa_id=admin_claims.empresa_id,
+        zona_id=zona_id,
+        activo=True,
+        limit=MAX_LIMIT,
+        offset=0,
+    )
+    items = [
+        LinkBulkItem(
+            cliente_id=str(c.id),
+            nombre_completo=c.nombre_completo,
+            telefono=c.telefono,
+            url=f"{settings.frontend_base_url}/c/{sign_link_token(settings, cliente_id=c.id)}",
+        )
+        for c in clientes
+    ]
+    return GenerarLinksBulkOut(items=items)
