@@ -14,7 +14,18 @@ function RootRedirect() {
   return <Navigate to={token ? "/dashboard" : "/login"} replace />;
 }
 
+function Splash() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">
+      <p>Cargando…</p>
+    </main>
+  );
+}
+
 export default function App() {
+  const bootChecked = useAuthStore((s) => s.bootChecked);
+  if (!bootChecked) return <Splash />;
+
   return (
     <Routes>
       <Route path="/" element={<RootRedirect />} />

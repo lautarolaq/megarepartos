@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { bootRecoverSession } from "./lib/boot";
 import "./index.css";
 
 const root = document.getElementById("root");
@@ -19,6 +20,10 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Intentar recuperar sesión vía cookie de refresh al boot. No bloqueante:
+// la app renderiza un splash hasta que bootChecked=true.
+void bootRecoverSession();
 
 createRoot(root).render(
   <StrictMode>
