@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Package, Pencil, Send, Trash2 } from "lucide-react";
+import { Link2, Package, Pencil, RotateCcw, Send, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -41,11 +41,14 @@ interface LinkGenerado {
   url: string;
 }
 
+type FiltroActivo = "activos" | "inactivos" | "todos";
+
 export function ClientesPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
   const [zonaFiltro, setZonaFiltro] = useState<string>("");
+  const [filtroActivo, setFiltroActivo] = useState<FiltroActivo>("activos");
   const [openCreate, setOpenCreate] = useState(false);
   const [clienteHabituales, setClienteHabituales] = useState<Cliente | null>(null);
   const [linkGenerado, setLinkGenerado] = useState<LinkGenerado | null>(null);
@@ -66,11 +69,13 @@ export function ClientesPage() {
   const zonasMap = new Map((zonasData?.items ?? []).map((z) => [z.id, z]));
 
   const { data, isLoading } = useQuery({
-    queryKey: ["clientes", qDebounced, zonaFiltro],
+    queryKey: ["clientes", qDebounced, zonaFiltro, filtroActivo],
     queryFn: async (): Promise<ClienteListResp> => {
-      const params: Record<string, string | number> = { limit: 100 };
+      const params: Record<string, string | number | boolean> = { limit: 100 };
       if (qDebounced) params.q = qDebounced;
       if (zonaFiltro) params.zona_id = zonaFiltro;
+      if (filtroActivo === "activos") params.activo = true;
+      else if (filtroActivo === "inactivos") params.activo = false;
       const resp = await api.get<ClienteListResp>("/api/clientes", { params });
       return resp.data;
     },
@@ -78,6 +83,11 @@ export function ClientesPage() {
 
   const desactivarMut = useMutation({
     mutationFn: async (id: string) => api.delete(`/api/clientes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clientes"] }),
+  });
+
+  const reactivarMut = useMutation({
+    mutationFn: async (id: string) => api.patch(`/api/clientes/${id}`, { activo: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["clientes"] }),
   });
 
@@ -122,6 +132,20 @@ export function ClientesPage() {
             </option>
           ))}
         </select>
+        <div className="inline-flex overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
+          {(["activos", "inactivos", "todos"] as FiltroActivo[]).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setFiltroActivo(v)}
+              className={`px-3 py-2 capitalize transition-colors ${
+                filtroActivo === v ? "bg-sky-600 text-white" : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading && <p className="mt-4 text-slate-500">Buscando…</p>}
@@ -176,7 +200,7 @@ export function ClientesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    {c.activo && (
+                    {c.activo ? (
                       <div className="flex justify-end gap-3">
                         <button
                           type="button"
@@ -214,6 +238,19 @@ export function ClientesPage() {
                           }}
                         >
                           <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          title="Reactivar cliente"
+                          onClick={() => reactivarMut.mutate(c.id)}
+                          disabled={reactivarMut.isPending}
+                        >
+                          <RotateCcw size={12} />
+                          Reactivar
                         </button>
                       </div>
                     )}
