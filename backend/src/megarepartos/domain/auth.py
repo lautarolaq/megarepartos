@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.domain._events import event_recorder
 from megarepartos.infra.auth import GoogleProfile
+from megarepartos.infra.db import set_tenant_context
 from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.models.empresa import Empresa
 from megarepartos.models.usuario import Usuario
@@ -49,6 +50,9 @@ async def login_or_create_user(
             await session.execute(select(Empresa).where(Empresa.id == existing.empresa_id))
         ).scalar_one()
         await session.flush()
+        # Setear tenant context para queries siguientes (consistencia con el
+        # caso primer-login).
+        await set_tenant_context(session, empresa_id=empresa.id, usuario_id=existing.id)
         return empresa, existing
 
     # Primer login: crear Empresa + Usuario.
@@ -71,6 +75,9 @@ async def login_or_create_user(
     )
     session.add(usuario)
     await session.flush()  # asigna usuario.id
+
+    # Setear tenant context para que los INSERTs siguientes (eventos) pasen RLS.
+    await set_tenant_context(session, empresa_id=empresa.id, usuario_id=usuario.id)
 
     async with event_recorder(
         session,

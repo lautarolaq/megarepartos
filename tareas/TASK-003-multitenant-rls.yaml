@@ -1,0 +1,86 @@
+id: TASK-003
+nombre: "Multi-tenant middleware + Row-Level Security en Postgres"
+tipo: feature
+sprint: 1
+prioridad: alta
+
+contexto: |
+  Defensa en profundidad para el aislamiento entre empresas:
+
+    Capa 1 (ya hecha en TASK-001): JWT firmado con `empresa_id` y validación
+    de coincidencia en `obtener_contexto_actual`.
+
+    Capa 2 (esta tarea): Row-Level Security de Postgres. Cada SELECT/UPDATE/
+    DELETE/INSERT sobre tablas de negocio respeta una policy que compara
+    `empresa_id` contra `current_setting('app.empresa_id')`. Si el código
+    olvida filtrar, Postgres devuelve 0 rows.
+
+  El flujo es:
+    1. Cada request autenticada pasa por la dep `authenticated_session`.
+    2. Ésta valida los claims y ejecuta `SET LOCAL app.empresa_id = '<uuid>'`
+       y `SET LOCAL app.usuario_id = '<uuid>'` sobre la conexión del request.
+    3. Las RLS policies usan esos session vars para filtrar.
+
+  En esta tarea NO se habilita RLS sobre `empresa` ni `usuario` (acceso
+  controlado vía auth flow). El resto de tablas de negocio sí.
+
+comportamiento:
+  - "REQ-MT-001: Todas las tablas de negocio (cliente, producto, envase, zona, campana, template_mensaje, template_formulario, evento_dominio, token_extension, sheet_referencia, producto_habitual, mensaje_enviado, respuesta_link, confirmacion_pedido) tienen RLS habilitado + FORCE."
+  - "REQ-MT-002: La dep `authenticated_session` setea `app.empresa_id` y `app.usuario_id` con `SET LOCAL` antes de yield."
+  - "REQ-MT-003: SELECT sobre `cliente` con `app.empresa_id` apuntando a empresa A solo devuelve clientes de A (no clientes de empresa B)."
+  - "REQ-MT-004: INSERT sobre `cliente` con `empresa_id` ≠ `app.empresa_id` falla (violation de RLS)."
+  - "REQ-MT-005: UPDATE/DELETE sobre `cliente` de empresa B desde contexto de A devuelve 0 rows afectados (RLS oculta)."
+  - "REQ-MT-006: Sin `app.empresa_id` seteado (vacío), SELECT sobre tablas con RLS devuelve 0 rows (fail-closed)."
+  - "REQ-MT-007: Para `template_mensaje` y `template_formulario`, los registros preset (empresa_id IS NULL) son visibles desde cualquier empresa."
+  - "REQ-MT-008: Las tablas indirectas (producto_habitual, mensaje_enviado, respuesta_link, confirmacion_pedido) heredan el filtro vía EXISTS sobre el padre con empresa_id."
+
+no_debe:
+  - "Habilitar RLS sobre `empresa` ni `usuario` en esta tarea (acceso por auth flow)."
+  - "Habilitar RLS sobre `plan` (es config compartida del sistema)."
+  - "Permitir bypass de RLS desde la app (sin policy específica)."
+
+archivos_nuevos:
+  - "backend/alembic/versions/0002_rls_business_tables.py"
+  - "behaviors/multi_tenant.md"
+  - "backend/tests/integration/test_aislamiento.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/infra/db.py"  # set_tenant_context helper
+  - "backend/src/megarepartos/infra/auth.py"  # authenticated_session dep
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"
+
+tests:
+  - "test_REQ_MT_001_rls_habilitado_en_tablas_de_negocio"
+  - "test_REQ_MT_002_authenticated_session_setea_session_vars"
+  - "test_REQ_MT_003_select_cliente_solo_devuelve_empresa_actual"
+  - "test_REQ_MT_004_insert_cliente_con_empresa_ajena_falla"
+  - "test_REQ_MT_005_update_cliente_ajeno_es_invisible"
+  - "test_REQ_MT_006_sin_contexto_devuelve_cero_rows"
+  - "test_REQ_MT_007_templates_preset_visibles_desde_cualquier_empresa"
+  - "test_REQ_MT_008_tablas_indirectas_heredan_filtro_via_exists"
+
+aceptacion:
+  - "make test verde"
+  - "make lint verde"
+  - "make check-arquitectura verde"
+  - "make behavior-coverage verde"
+
+depende_de:
+  - "TASK-000"
+  - "TASK-001"
+  - "TASK-002"
+
+notas: |
+  La migración corre como superuser de Postgres (el rol `megarepartos` del
+  docker compose), por eso `FORCE ROW LEVEL SECURITY` es necesario — sin
+  FORCE, el owner de la tabla bypassa RLS y los tests fallarían (corren con
+  el mismo usuario).
+
+  Las policies sobre `template_mensaje` / `template_formulario` aceptan
+  `empresa_id IS NULL` para permitir presets compartidos del sistema.
+
+  Para INSERT sobre `mensaje_enviado` con `cliente_id=NULL` (caso destinatario
+  desde sheet sin matching), el filtro indirecto vía `campana_id` igual aplica.
