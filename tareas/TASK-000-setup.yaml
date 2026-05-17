@@ -1,0 +1,107 @@
+id: TASK-000
+nombre: "Setup inicial del proyecto Megarepartos"
+tipo: infra
+sprint: 0
+prioridad: alta
+
+contexto: |
+  Crear el andamiaje del proyecto: estructura de carpetas según sección 17 del SPEC,
+  configs base, Docker para dev local, CI inicial, conexión a Neon, primer endpoint
+  /health. Esta tarea es prerrequisito de todas las demás.
+
+comportamiento:
+  - "REQ-SETUP-001: Existe `docker-compose.yml` que levanta Postgres local en localhost:5432."
+  - "REQ-SETUP-002: `make dev` arranca backend en localhost:8000 y frontend en localhost:5173."
+  - "REQ-SETUP-003: GET /health retorna 200 con {status: ok, db: ok}."
+  - "REQ-SETUP-004: Alembic configurado, primera migración crea schema completo de SPEC sección 5."
+  - "REQ-SETUP-005: pytest configurado y `make test` corre sin tests (suite vacía pasa)."
+  - "REQ-SETUP-006: Conexión a Neon configurable via NEON_DATABASE_URL env var."
+  - "REQ-SETUP-007: Frontend Vite arranca con TypeScript y Tailwind configurados."
+  - "REQ-SETUP-008: Página `/` muestra 'Megarepartos - en construcción' (stub)."
+  - "REQ-SETUP-009: Existe CLAUDE.md con contenido de sección 19 del SPEC."
+  - "REQ-SETUP-010: Existe .github/workflows/ci.yml que ejecuta lint+test+build."
+  - "REQ-SETUP-011: Existe `scripts/check_arquitectura.py` (puede estar vacío, solo placeholder)."
+  - "REQ-SETUP-012: Existe `behaviors/_template.md` con estructura base."
+  - "REQ-SETUP-013: Existe `tareas/_template.yaml` con estructura base."
+
+no_debe:
+  - "Implementar features de negocio. Solo setup."
+  - "Usar SQLAlchemy sincrónico."
+  - "Agregar librerías fuera de la lista blanca de CLAUDE.md."
+  - "Tocar la carpeta `extension/` (se hace en TASK posterior)."
+
+archivos_nuevos:
+  - "README.md"
+  - "CLAUDE.md"
+  - "CHANGELOG.md"
+  - "Makefile"
+  - ".gitignore"
+  - ".env.example"
+  - "docker-compose.yml"
+  - "Dockerfile"
+  - ".github/workflows/ci.yml"
+  - "backend/pyproject.toml"
+  - "backend/alembic.ini"
+  - "backend/alembic/env.py"
+  - "backend/alembic/versions/0001_schema_inicial.py"
+  - "backend/src/megarepartos/main.py"
+  - "backend/src/megarepartos/config.py"
+  - "backend/src/megarepartos/infra/db.py"
+  - "backend/src/megarepartos/infra/logging.py"
+  - "backend/src/megarepartos/api/__init__.py"
+  - "backend/src/megarepartos/models/__init__.py"
+  - "backend/src/megarepartos/models/base.py"
+  - "backend/src/megarepartos/models/empresa.py"
+  - "backend/src/megarepartos/models/usuario.py"
+  - "backend/src/megarepartos/models/cliente.py"
+  - "backend/src/megarepartos/models/producto.py"
+  - "backend/src/megarepartos/models/zona.py"
+  - "backend/src/megarepartos/models/campana.py"
+  - "backend/src/megarepartos/models/mensaje.py"
+  - "backend/src/megarepartos/models/template.py"
+  - "backend/src/megarepartos/models/sheet.py"
+  - "backend/src/megarepartos/models/evento.py"
+  - "backend/tests/conftest.py"
+  - "frontend/package.json"
+  - "frontend/tsconfig.json"
+  - "frontend/vite.config.ts"
+  - "frontend/tailwind.config.js"
+  - "frontend/index.html"
+  - "frontend/src/main.tsx"
+  - "frontend/src/App.tsx"
+  - "scripts/check_arquitectura.py"
+  - "scripts/check_test_coverage_changes.py"
+  - "scripts/behavior_coverage.py"
+  - "behaviors/_template.md"
+  - "tareas/_template.yaml"
+  - "docs/MEGAREPARTOS_SPEC.md"
+  - "docs/ARCHITECTURE.md"
+  - "docs/DEVELOPMENT.md"
+
+archivos_a_modificar: []
+archivos_NO_tocar:
+  - "extension/**"
+
+tests:
+  - "test_health_endpoint_responde_200"
+  - "test_health_db_responde_ok_con_conexion_valida"
+
+aceptacion:
+  - "make dev arranca sin errores"
+  - "GET http://localhost:8000/health retorna {status: ok, db: ok}"
+  - "GET http://localhost:5173/ muestra 'Megarepartos - en construcción'"
+  - "make test pasa (suite vacía)"
+  - "make lint pasa"
+  - "alembic upgrade head crea todas las tablas del schema"
+  - "CI pasa todos los checks"
+
+depende_de: []
+
+notas: |
+  Esta tarea define la base. Tomate tiempo para hacerla bien.
+  Cuando termines, todas las tareas siguientes asumen este estado.
+
+  El schema SQL de la sección 5 del SPEC va completo en la primera migración
+  (0001_schema_inicial.py). No partir en varias migraciones.
+
+  La extensión Chrome NO se toca en esta tarea. Es TASK posterior.

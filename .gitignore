@@ -39,6 +39,11 @@ frontend/dist-ssr/
 frontend/*.local
 extension/dist/
 
+# TypeScript build info (de `tsc -b`)
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
 # ---- Env / secretos ----
 .env
 .env.*

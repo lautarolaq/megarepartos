@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancela runs vencidos cuando hay push nuevo sobre la misma rama.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-backend:
+    name: Lint backend (ruff + mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff check
+        working-directory: backend
+        run: ruff check .
+
+      - name: ruff format check
+        working-directory: backend
+        run: ruff format --check .
+
+      - name: mypy
+        working-directory: backend
+        run: mypy src
+
+  test-backend:
+    name: Tests backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: pytest
+        working-directory: backend
+        # En TASK-000 la suite está vacía: `--passed` evita exit 5 ("no tests collected").
+        run: pytest --import-mode=importlib --override-ini="addopts=" || [ $? -eq 5 ]
+
+  lint-frontend:
+    name: Lint frontend (biome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: biome check
+        working-directory: frontend
+        run: npm run lint
+
+  build-frontend:
+    name: Build frontend (vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Vite build
+        working-directory: frontend
+        run: npm run build
+
+  build-backend-image:
+    name: Build backend Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: false
+          tags: megarepartos-backend:ci
+
+  check-arquitectura:
+    name: Reglas de arquitectura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_arquitectura.py
+
+  behavior-coverage:
+    name: REQ-IDs con test asociado
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/behavior_coverage.py
