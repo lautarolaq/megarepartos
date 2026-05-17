@@ -14,6 +14,8 @@ interface Cliente {
   direccion: string | null;
   zona_id: string | null;
   modalidad: string;
+  frecuencia: string | null;
+  observaciones_permanentes: string | null;
   condicion_pago: string;
   activo: boolean;
 }
@@ -407,9 +409,13 @@ function EditarClienteModal({
   const qc = useQueryClient();
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
   const [zonaId, setZonaId] = useState("");
   const [modalidad, setModalidad] = useState<"fijo" | "consulta" | "demanda">("consulta");
+  const [frecuencia, setFrecuencia] = useState<"semanal" | "quincenal" | "mensual" | "">("");
+  const [condicionPago, setCondicionPago] = useState<"contado" | "cuenta_corriente">("contado");
+  const [observaciones, setObservaciones] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const { data: zonasData } = useQuery({
@@ -422,9 +428,13 @@ function EditarClienteModal({
     if (cliente) {
       setNombre(cliente.nombre_completo);
       setTelefono(cliente.telefono);
+      setEmail(cliente.email ?? "");
       setDireccion(cliente.direccion ?? "");
       setZonaId(cliente.zona_id ?? "");
       setModalidad((cliente.modalidad as "fijo" | "consulta" | "demanda") ?? "consulta");
+      setFrecuencia((cliente.frecuencia as "semanal" | "quincenal" | "mensual" | null) ?? "");
+      setCondicionPago((cliente.condicion_pago as "contado" | "cuenta_corriente") ?? "contado");
+      setObservaciones(cliente.observaciones_permanentes ?? "");
       setError(null);
     }
   }, [cliente]);
@@ -435,9 +445,13 @@ function EditarClienteModal({
       return api.patch(`/api/clientes/${cliente.id}`, {
         nombre_completo: nombre,
         telefono,
+        email: email || null,
         direccion: direccion || null,
         zona_id: zonaId || null,
         modalidad,
+        frecuencia: frecuencia || null,
+        condicion_pago: condicionPago,
+        observaciones_permanentes: observaciones || null,
       });
     },
     onSuccess: () => {
@@ -466,37 +480,84 @@ function EditarClienteModal({
           onChange={(e) => setTelefono(e.target.value)}
         />
         <Input
+          label="Email"
+          name="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Input
           label="Dirección"
           name="direccion"
           value={direccion}
           onChange={(e) => setDireccion(e.target.value)}
         />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Zona</span>
+            <select
+              value={zonaId}
+              onChange={(e) => setZonaId(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Sin zona</option>
+              {(zonasData?.items ?? []).map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Modalidad</span>
+            <select
+              value={modalidad}
+              onChange={(e) => setModalidad(e.target.value as "fijo" | "consulta" | "demanda")}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="consulta">Consulta</option>
+              <option value="fijo">Fijo</option>
+              <option value="demanda">Demanda</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Frecuencia</span>
+            <select
+              value={frecuencia}
+              onChange={(e) =>
+                setFrecuencia(e.target.value as "semanal" | "quincenal" | "mensual" | "")
+              }
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Sin definir</option>
+              <option value="semanal">Semanal</option>
+              <option value="quincenal">Quincenal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Cond. de pago</span>
+            <select
+              value={condicionPago}
+              onChange={(e) => setCondicionPago(e.target.value as "contado" | "cuenta_corriente")}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="contado">Contado</option>
+              <option value="cuenta_corriente">Cuenta corriente</option>
+            </select>
+          </label>
+        </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Zona</span>
-          <select
-            value={zonaId}
-            onChange={(e) => setZonaId(e.target.value)}
+          <span className="font-medium text-slate-700">Observaciones</span>
+          <textarea
+            rows={2}
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            placeholder="ej: timbre roto, dejar en portería"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          >
-            <option value="">Sin zona</option>
-            {(zonasData?.items ?? []).map((z) => (
-              <option key={z.id} value={z.id}>
-                {z.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Modalidad</span>
-          <select
-            value={modalidad}
-            onChange={(e) => setModalidad(e.target.value as "fijo" | "consulta" | "demanda")}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          >
-            <option value="consulta">Consulta</option>
-            <option value="fijo">Fijo</option>
-            <option value="demanda">Demanda</option>
-          </select>
+          />
         </label>
         {error && <p className="text-sm text-rose-600">{error}</p>}
         <div className="mt-2 flex justify-end gap-2">
@@ -782,9 +843,13 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
   const qc = useQueryClient();
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
   const [zonaId, setZonaId] = useState("");
   const [modalidad, setModalidad] = useState<"fijo" | "consulta" | "demanda">("consulta");
+  const [frecuencia, setFrecuencia] = useState<"semanal" | "quincenal" | "mensual" | "">("");
+  const [condicionPago, setCondicionPago] = useState<"contado" | "cuenta_corriente">("contado");
+  const [observaciones, setObservaciones] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const { data: zonasData } = useQuery({
@@ -793,23 +858,35 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
     enabled: open,
   });
 
+  function reset() {
+    setNombre("");
+    setTelefono("");
+    setEmail("");
+    setDireccion("");
+    setZonaId("");
+    setModalidad("consulta");
+    setFrecuencia("");
+    setCondicionPago("contado");
+    setObservaciones("");
+    setError(null);
+  }
+
   const crear = useMutation({
     mutationFn: async () =>
       api.post("/api/clientes", {
         nombre_completo: nombre,
         telefono,
+        email: email || null,
         direccion: direccion || null,
         zona_id: zonaId || null,
         modalidad,
+        frecuencia: frecuencia || null,
+        condicion_pago: condicionPago,
+        observaciones_permanentes: observaciones || null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clientes"] });
-      setNombre("");
-      setTelefono("");
-      setDireccion("");
-      setZonaId("");
-      setModalidad("consulta");
-      setError(null);
+      reset();
       onClose();
     },
     onError: (err: unknown) => {
@@ -836,38 +913,86 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
           placeholder="351 555 1234"
         />
         <Input
+          label="Email (opcional)"
+          name="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="juan@gmail.com"
+        />
+        <Input
           label="Dirección (opcional)"
           name="direccion"
           value={direccion}
           onChange={(e) => setDireccion(e.target.value)}
           placeholder="Av. Colón 123"
         />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Zona</span>
+            <select
+              value={zonaId}
+              onChange={(e) => setZonaId(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Sin zona</option>
+              {(zonasData?.items ?? []).map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Modalidad</span>
+            <select
+              value={modalidad}
+              onChange={(e) => setModalidad(e.target.value as "fijo" | "consulta" | "demanda")}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="consulta">Consulta</option>
+              <option value="fijo">Fijo</option>
+              <option value="demanda">Demanda</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Frecuencia</span>
+            <select
+              value={frecuencia}
+              onChange={(e) =>
+                setFrecuencia(e.target.value as "semanal" | "quincenal" | "mensual" | "")
+              }
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Sin definir</option>
+              <option value="semanal">Semanal</option>
+              <option value="quincenal">Quincenal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Cond. de pago</span>
+            <select
+              value={condicionPago}
+              onChange={(e) => setCondicionPago(e.target.value as "contado" | "cuenta_corriente")}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="contado">Contado</option>
+              <option value="cuenta_corriente">Cuenta corriente</option>
+            </select>
+          </label>
+        </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Zona</span>
-          <select
-            value={zonaId}
-            onChange={(e) => setZonaId(e.target.value)}
+          <span className="font-medium text-slate-700">Observaciones (opcional)</span>
+          <textarea
+            rows={2}
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            placeholder="ej: timbre roto, dejar en portería"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          >
-            <option value="">Sin zona</option>
-            {(zonasData?.items ?? []).map((z) => (
-              <option key={z.id} value={z.id}>
-                {z.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Modalidad</span>
-          <select
-            value={modalidad}
-            onChange={(e) => setModalidad(e.target.value as "fijo" | "consulta" | "demanda")}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          >
-            <option value="consulta">Consulta</option>
-            <option value="fijo">Fijo</option>
-            <option value="demanda">Demanda</option>
-          </select>
+          />
         </label>
         {error && <p className="text-sm text-rose-600">{error}</p>}
         <div className="mt-2 flex justify-end gap-2">
