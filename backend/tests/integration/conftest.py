@@ -21,7 +21,7 @@ import pytest_asyncio
 from alembic import command
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import NullPool
+from sqlalchemy import NullPool, text
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -97,6 +97,10 @@ async def db_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         join_transaction_mode="create_savepoint",
     )
     session = sessionmaker()
+    # Cambiar al rol `megarepartos_app` (no superuser) para que RLS aplique.
+    # En Postgres, superusers bypassean RLS incluso con FORCE. El rol se crea
+    # en la migración 0002_rls_business_tables.
+    await session.execute(text("SET LOCAL ROLE megarepartos_app"))
     try:
         yield session
     finally:

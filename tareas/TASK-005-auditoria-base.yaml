@@ -1,0 +1,60 @@
+id: TASK-005
+nombre: "Auditoría base: evento_dominio + event_recorder con request_id/ip/UA"
+tipo: feature
+sprint: 1
+prioridad: alta
+
+contexto: |
+  `event_recorder` ya existía como stub en TASK-001 — solo escribía
+  `entidad_tipo`, `accion`, `detalles_jsonb`. Esta tarea lo cierra:
+
+  1. Captura **request context** (request_id, ip_origen, user_agent) vía
+     contextvars seteadas por un middleware FastAPI.
+  2. `event_recorder` los inyecta automáticamente al `EventoDominio`.
+  3. Cada operación de escritura en `domain/*.py` queda auditada con el
+     contexto completo del request que la disparó.
+
+  Esto cierra la regla CLAUDE.md Backend #2 ("toda operación de escritura
+  usa event_recorder") y la aceptación de Sprint 1 ("Todo cambio en DB
+  genera evento de dominio").
+
+comportamiento:
+  - "REQ-AUD-001: Middleware `AuditContextMiddleware` genera un `request_id` (UUID) único por request, captura `client.host` como ip_origen y `User-Agent` header, y los expone vía contextvars."
+  - "REQ-AUD-002: `event_recorder` lee las contextvars y llena `EventoDominio.ip_origen` y `EventoDominio.user_agent` al persistir."
+  - "REQ-AUD-003: `detalles_jsonb` siempre incluye `request_id` (si está en contextvars)."
+  - "REQ-AUD-004: Si el código se ejecuta fuera de un request (cron, test directo sin HTTP), las contextvars devuelven None — el evento se persiste igual con ip/UA nulos."
+  - "REQ-AUD-005: `event_recorder` falla con `ApiError(INTERNO)` si el caller no provee `empresa_id`. (Defensa contra eventos sin contexto multi-tenant.)"
+
+no_debe:
+  - "Guardar request_id en columna propia (queda en `detalles_jsonb` para flexibilidad)."
+  - "Capturar headers sensibles como Authorization o Cookie en `user_agent`."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/infra/audit_context.py"
+  - "behaviors/auditoria.md"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/domain/_events.py"  # leer contextvars
+  - "backend/src/megarepartos/main.py"  # montar middleware
+
+archivos_NO_tocar:
+  - "extension/**"
+
+tests:
+  - "test_REQ_AUD_001_middleware_inyecta_request_id_ip_y_user_agent"
+  - "test_REQ_AUD_002_event_recorder_llena_ip_y_user_agent"
+  - "test_REQ_AUD_003_detalles_jsonb_incluye_request_id"
+  - "test_REQ_AUD_004_event_recorder_funciona_sin_contextvars"
+
+aceptacion:
+  - "make test verde"
+  - "Login real genera EventoDominio con request_id, ip, UA"
+
+depende_de:
+  - "TASK-001"
+  - "TASK-003"
+
+notas: |
+  El request_id se incluye también en el header `X-Request-ID` de la respuesta
+  para que el cliente pueda correlacionar. Si el cliente manda ya un
+  `X-Request-ID`, lo respetamos (debugging distribuido).

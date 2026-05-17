@@ -1,0 +1,88 @@
+id: TASK-008
+nombre: "CRUD productos"
+tipo: feature
+sprint: 2
+prioridad: alta
+
+contexto: |
+  Primera entidad CRUDeable de la app. La sodería gestiona su catálogo de
+  productos (Bidón 20L, Soda 1.5L, etc.) desde `/api/productos`.
+
+  Endpoints:
+    - GET  /api/productos              listado paginado, filtros activo, ordenado por orden_display
+    - GET  /api/productos/{id}         detalle
+    - POST /api/productos              crear (admin only)
+    - PATCH /api/productos/{id}        actualizar (admin only)
+    - DELETE /api/productos/{id}       soft delete: pone activo=false (admin only)
+
+  Aplica todas las capas:
+    - `authenticated_session` (TASK-001)
+    - RLS Postgres (TASK-003)
+    - Helpers de repositorio (TASK-004)
+    - Audit via event_recorder (TASK-005)
+    - `require_rol("admin")` en escrituras (TASK-007)
+    - Tests de aislamiento (TASK-006)
+
+comportamiento:
+  - "REQ-PROD-001: GET /api/productos devuelve solo los productos de la empresa del JWT, ordenados por (orden_display ASC, nombre ASC)."
+  - "REQ-PROD-002: GET /api/productos?activo=true filtra por activo (default: todos, incluso inactivos)."
+  - "REQ-PROD-003: GET /api/productos/{id} con id de empresa ajena devuelve 404 RECURSO_NO_ENCONTRADO."
+  - "REQ-PROD-004: POST /api/productos crea producto en la empresa del JWT, devuelve 201 con el ProductoOut."
+  - "REQ-PROD-005: POST /api/productos sin nombre devuelve 400 VALIDACION_INPUT."
+  - "REQ-PROD-006: POST /api/productos como operador (no admin) devuelve 403 PERMISO_DENEGADO."
+  - "REQ-PROD-007: PATCH /api/productos/{id} actualiza solo los campos provided (no toca lo no enviado)."
+  - "REQ-PROD-008: PATCH /api/productos/{id} de empresa ajena devuelve 404."
+  - "REQ-PROD-009: DELETE /api/productos/{id} hace soft delete (activo=false), devuelve 204."
+  - "REQ-PROD-010: DELETE /api/productos/{id} idempotente: borrar dos veces es OK."
+  - "REQ-PROD-011: Cada POST/PATCH/DELETE genera un `evento_dominio` con accion='creado'|'modificado'|'desactivado'."
+  - "REQ-PROD-012: POST con `envase_id` no perteneciente a la empresa devuelve 422 VALIDACION_SEMANTICA."
+
+no_debe:
+  - "Permitir hard delete vía API. Solo soft delete (regla CLAUDE.md 10.3)."
+  - "Permitir cambiar `empresa_id` en PATCH."
+  - "Devolver productos de otras empresas en ningún caso (defensa: RLS + filtro explícito)."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/schemas/producto.py"
+  - "backend/src/megarepartos/domain/productos.py"
+  - "backend/src/megarepartos/api/productos.py"
+  - "behaviors/productos.md"
+  - "backend/tests/integration/test_productos_api.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/main.py"  # mount router
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"  # UI CRUD es otro TASK
+
+tests:
+  - "test_REQ_PROD_001_listado_filtra_por_empresa_y_ordena"
+  - "test_REQ_PROD_002_filtro_activo"
+  - "test_REQ_PROD_003_detalle_ajeno_404"
+  - "test_REQ_PROD_004_post_crea_y_devuelve_201"
+  - "test_REQ_PROD_005_post_sin_nombre_400"
+  - "test_REQ_PROD_006_post_como_operador_403"
+  - "test_REQ_PROD_007_patch_solo_cambia_provided"
+  - "test_REQ_PROD_008_patch_ajeno_404"
+  - "test_REQ_PROD_009_delete_soft_204"
+  - "test_REQ_PROD_010_delete_idempotente"
+  - "test_REQ_PROD_011_eventos_generados"
+  - "test_REQ_PROD_012_envase_ajeno_422"
+
+aceptacion:
+  - "make test verde"
+  - "make check-arquitectura verde"
+  - "scripts/check_endpoint_isolation.py verde (todos los endpoints tienen test isolation)"
+
+depende_de:
+  - "TASK-001"
+  - "TASK-002"
+  - "TASK-003"
+  - "TASK-004"
+  - "TASK-005"
+  - "TASK-007"
+
+notas: |
+  CRUD envases (TASK-009) se hace después y usa el mismo patrón. Si aparece
+  duplicación obvia, se refactorea a una clase repository en TASK-009.

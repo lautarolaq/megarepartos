@@ -1,0 +1,56 @@
+id: TASK-007
+nombre: "Roles admin/operador + control de acceso por endpoint"
+tipo: feature
+sprint: 1
+prioridad: alta
+
+contexto: |
+  Dos roles en MVP (sección 9.2 del SPEC):
+
+  - **Admin**: todo. CRUD productos/clientes/zonas, gestión de usuarios,
+    suscripción, borrado de campañas pasadas.
+  - **Operador**: crear/enviar campañas, ver resultados. NO borra campañas
+    pasadas, NO toca catálogo, NO gestiona usuarios.
+
+  Esta tarea agrega el dep `require_rol(*permitidos)` en `infra/auth.py`
+  que los endpoints usan para enforcear permisos. Sin él, todo endpoint
+  autenticado aceptaba cualquier rol.
+
+comportamiento:
+  - "REQ-ROL-001: `require_rol('admin')` permite pasar si claims.rol == 'admin'."
+  - "REQ-ROL-002: `require_rol('admin')` levanta `ApiError(PERMISO_DENEGADO)` (403) si el usuario es operador."
+  - "REQ-ROL-003: `require_rol('admin', 'operador')` acepta cualquiera de los dos roles."
+  - "REQ-ROL-004: El mensaje del 403 no expone qué roles serían válidos (no leakear superficie)."
+  - "REQ-ROL-005: El dep se compone con `authenticated_session` — primero auth, después rol."
+
+no_debe:
+  - "Permitir override desde headers, cookies o query params — solo del JWT."
+  - "Validar rol contra DB (el JWT es la fuente de verdad — `obtener_contexto_actual` ya valida que el usuario sigue existiendo + activo)."
+
+archivos_nuevos:
+  - "behaviors/roles.md"
+  - "backend/tests/unit/test_roles.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/infra/auth.py"  # `require_rol`
+
+archivos_NO_tocar:
+  - "extension/**"
+
+tests:
+  - "test_REQ_ROL_001_admin_pasa"
+  - "test_REQ_ROL_002_operador_es_rechazado"
+  - "test_REQ_ROL_003_lista_de_roles_aceptados"
+  - "test_REQ_ROL_004_mensaje_no_expone_roles_validos"
+
+aceptacion:
+  - "make test verde"
+  - "Endpoint de TASK-008 (productos PATCH/DELETE) usa require_rol('admin')"
+
+depende_de:
+  - "TASK-001"
+  - "TASK-003"
+
+notas: |
+  Cuando aparezcan más roles (por ej. supervisor para multi-sucursal en
+  Premium), agregamos sin tocar el dep — solo se cambian las listas.

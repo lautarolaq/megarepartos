@@ -18,7 +18,7 @@ import hashlib
 import hmac
 import secrets
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, cast
@@ -27,8 +27,10 @@ from fastapi import Depends, Header
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from jose import JWTError, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.config import Settings, get_settings
+from megarepartos.infra.db import get_session, set_tenant_context
 from megarepartos.infra.errors import ApiError, ErrorCode
 
 # JWT ----------------------------------------------------------------------
@@ -232,6 +234,54 @@ async def current_claims(
         raise ApiError(ErrorCode.AUTH_REQUIRED, "Falta el header Authorization Bearer.")
     token = authorization[7:].strip()
     return decode_token(token, settings=settings, expected_type="access")
+
+
+async def authenticated_session(
+    claims: Annotated[TokenClaims, Depends(current_claims)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AsyncIterator[AsyncSession]:
+    """Sesión con tenant context seteado.
+
+    Los routers de negocio dependen de esta dep en vez de `get_session`. RLS
+    de Postgres usa los session vars `app.empresa_id` y `app.usuario_id` para
+    filtrar; sin esta dep no hay aislamiento (regla CLAUDE.md Backend #1).
+    """
+    await set_tenant_context(
+        session,
+        empresa_id=claims.empresa_id,
+        usuario_id=claims.sub,
+    )
+    yield session
+
+
+def require_rol(*roles_permitidos: str) -> Callable[[TokenClaims], TokenClaims]:
+    """Factory de dependencia FastAPI: exige que `claims.rol` esté en `roles_permitidos`.
+
+    Uso:
+
+        @router.post("/productos")
+        async def crear(
+            _admin: Annotated[TokenClaims, Depends(require_rol("admin"))],
+            ...
+        ): ...
+
+    Levanta `ApiError(PERMISO_DENEGADO)` (403) si el rol no matchea. Mensaje
+    genérico — no leakea qué roles serían válidos (REQ-ROL-004).
+    """
+    if not roles_permitidos:
+        raise ValueError("require_rol necesita al menos un rol permitido.")
+
+    permitidos = frozenset(roles_permitidos)
+
+    def _checker(claims: Annotated[TokenClaims, Depends(current_claims)]) -> TokenClaims:
+        if claims.rol not in permitidos:
+            raise ApiError(
+                ErrorCode.PERMISO_DENEGADO,
+                "No tenés permiso para esta acción.",
+            )
+        return claims
+
+    return _checker
 
 
 # Cookie helpers -----------------------------------------------------------
