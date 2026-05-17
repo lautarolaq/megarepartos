@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.models.cliente import Cliente
 from megarepartos.models.evento import EventoDominio
+from megarepartos.models.zona import Zona
 
 
 @dataclass(slots=True)
@@ -24,6 +25,9 @@ class PedidoRow:
     cliente_id: uuid.UUID
     cliente_nombre: str
     cliente_telefono: str
+    cliente_direccion: str | None
+    cliente_zona_id: uuid.UUID | None
+    cliente_zona_nombre: str | None
     fecha: datetime
     detalles: dict[str, Any] = field(default_factory=dict)
 
@@ -91,8 +95,12 @@ async def listar_pedidos(
             EventoDominio.fecha.label("fecha"),
             Cliente.nombre_completo.label("cliente_nombre"),
             Cliente.telefono.label("cliente_telefono"),
+            Cliente.direccion.label("cliente_direccion"),
+            Cliente.zona_id.label("cliente_zona_id"),
+            Zona.nombre.label("cliente_zona_nombre"),
         )
         .join(Cliente, Cliente.id == EventoDominio.entidad_id)
+        .outerjoin(Zona, Zona.id == Cliente.zona_id)
         .where(*base_filters)
     )
 
@@ -115,6 +123,9 @@ async def listar_pedidos(
             cliente_id=r.cliente_id,
             cliente_nombre=r.cliente_nombre,
             cliente_telefono=r.cliente_telefono,
+            cliente_direccion=r.cliente_direccion,
+            cliente_zona_id=r.cliente_zona_id,
+            cliente_zona_nombre=r.cliente_zona_nombre,
             fecha=r.fecha,
             detalles=r.detalles or {},
         )

@@ -75,6 +75,9 @@ async def listar(
                 cliente_id=row.cliente_id,
                 cliente_nombre=row.cliente_nombre,
                 cliente_telefono=row.cliente_telefono,
+                cliente_direccion=row.cliente_direccion,
+                cliente_zona_id=row.cliente_zona_id,
+                cliente_zona_nombre=row.cliente_zona_nombre,
                 accion=str(row.detalles.get("accion", "")),
                 productos=productos,
                 observacion=row.detalles.get("observacion"),
@@ -122,6 +125,8 @@ async def export_csv(
         [
             "Cliente",
             "Teléfono",
+            "Dirección",
+            "Zona",
             "Acción",
             "Productos (llenos)",
             "Envases vacíos a recibir",
@@ -146,6 +151,8 @@ async def export_csv(
             [
                 row.cliente_nombre,
                 row.cliente_telefono,
+                row.cliente_direccion or "",
+                row.cliente_zona_nombre or "",
                 row.detalles.get("accion", ""),
                 "; ".join(llenos),
                 "; ".join(vacios),
