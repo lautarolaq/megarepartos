@@ -34,8 +34,27 @@ async def listar(
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    accion: Annotated[str | None, Query(description="'confirmo' o 'rechazo'")] = None,
+    desde_dias: Annotated[
+        int | None,
+        Query(ge=1, le=365, description="Sólo pedidos de los últimos N días."),
+    ] = None,
 ) -> PedidoListOut:
-    """REQ-LINK-007: lista respuestas de clientes ordenadas por fecha desc."""
+    """REQ-LINK-007: lista respuestas de clientes ordenadas por fecha desc.
+
+    Filtros opcionales: `accion` (confirmo/rechazo) y `desde_dias` (rolling).
+    """
+    base_filters = [
+        EventoDominio.empresa_id == claims.empresa_id,
+        EventoDominio.entidad_tipo == "cliente",
+        EventoDominio.accion == "respondio_link",
+    ]
+    if accion in ("confirmo", "rechazo"):
+        base_filters.append(EventoDominio.detalles_jsonb["accion"].astext == accion)
+    if desde_dias is not None:
+        cutoff = datetime.now(UTC) - timedelta(days=desde_dias)
+        base_filters.append(EventoDominio.fecha >= cutoff)
+
     base = (
         select(
             EventoDominio.id.label("evento_id"),
@@ -46,11 +65,7 @@ async def listar(
             Cliente.telefono.label("cliente_telefono"),
         )
         .join(Cliente, Cliente.id == EventoDominio.entidad_id)
-        .where(
-            EventoDominio.empresa_id == claims.empresa_id,
-            EventoDominio.entidad_tipo == "cliente",
-            EventoDominio.accion == "respondio_link",
-        )
+        .where(*base_filters)
     )
 
     total = (
@@ -58,11 +73,7 @@ async def listar(
             select(func.count())
             .select_from(EventoDominio)
             .join(Cliente, Cliente.id == EventoDominio.entidad_id)
-            .where(
-                EventoDominio.empresa_id == claims.empresa_id,
-                EventoDominio.entidad_tipo == "cliente",
-                EventoDominio.accion == "respondio_link",
-            )
+            .where(*base_filters)
         )
     ).scalar_one()
 

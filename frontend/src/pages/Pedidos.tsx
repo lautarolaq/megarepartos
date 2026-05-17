@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Check, MessageSquare, X } from "lucide-react";
+import { useState } from "react";
 
 interface ProductoPedido {
   producto_id: string;
@@ -38,10 +39,29 @@ function formatearFecha(iso: string): string {
   });
 }
 
+type FiltroAccion = "todos" | "confirmo" | "rechazo";
+type FiltroFecha = "hoy" | "semana" | "mes" | "todos";
+
+const FECHA_DIAS: Record<FiltroFecha, number | null> = {
+  hoy: 1,
+  semana: 7,
+  mes: 30,
+  todos: null,
+};
+
 export function PedidosPage() {
+  const [filtroAccion, setFiltroAccion] = useState<FiltroAccion>("todos");
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("semana");
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["pedidos"],
-    queryFn: async (): Promise<PedidoListResp> => (await api.get("/api/pedidos")).data,
+    queryKey: ["pedidos", filtroAccion, filtroFecha],
+    queryFn: async (): Promise<PedidoListResp> => {
+      const params: Record<string, string | number> = {};
+      if (filtroAccion !== "todos") params.accion = filtroAccion;
+      const dias = FECHA_DIAS[filtroFecha];
+      if (dias !== null) params.desde_dias = dias;
+      return (await api.get("/api/pedidos", { params })).data;
+    },
     refetchInterval: 30_000,
   });
 
@@ -52,6 +72,28 @@ export function PedidosPage() {
         <p className="mt-1 text-sm text-slate-500">
           Respuestas de los clientes que recibieron tu link por WhatsApp.
         </p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <SegmentedControl
+          value={filtroFecha}
+          onChange={setFiltroFecha}
+          options={[
+            { value: "hoy", label: "Hoy" },
+            { value: "semana", label: "7 días" },
+            { value: "mes", label: "30 días" },
+            { value: "todos", label: "Todos" },
+          ]}
+        />
+        <SegmentedControl
+          value={filtroAccion}
+          onChange={setFiltroAccion}
+          options={[
+            { value: "todos", label: "Todos" },
+            { value: "confirmo", label: "Confirmaron" },
+            { value: "rechazo", label: "Rechazaron" },
+          ]}
+        />
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Cargando…</p>}
@@ -78,6 +120,35 @@ export function PedidosPage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function SegmentedControl<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1.5 transition-colors ${
+            value === opt.value
+              ? "bg-sky-600 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }
