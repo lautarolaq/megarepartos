@@ -23,6 +23,7 @@ from megarepartos.domain.clientes import (
     registrar_link_generado,
     set_productos_habituales,
 )
+from megarepartos.domain.pedidos import historial_cliente
 from megarepartos.infra.auth import (
     LINK_TOKEN_DEFAULT_TTL_SECONDS,
     TokenClaims,
@@ -41,6 +42,7 @@ from megarepartos.schemas.cliente import (
     ProductosHabitualesOut,
     SetProductosHabitualesIn,
 )
+from megarepartos.schemas.pedido import HistorialClienteOut, HistorialEventoOut
 from megarepartos.schemas.publico import (
     GenerarLinkOut,
     GenerarLinksBulkIn,
@@ -269,3 +271,32 @@ async def generar_links_bulk(
             )
         )
     return GenerarLinksBulkOut(items=items)
+
+
+@router.get("/{cliente_id}/historial", response_model=HistorialClienteOut)
+async def historial(
+    cliente_id: uuid.UUID,
+    claims: ClaimsDep,
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> HistorialClienteOut:
+    """REQ-PED-007: lista las últimas N interacciones del cliente
+    (link_generado + respondio_link), orden fecha desc.
+
+    Defensa: obtener_cliente valida empresa via RLS + filtro explícito antes
+    de devolver historial.
+    """
+    await obtener_cliente(session, empresa_id=claims.empresa_id, cliente_id=cliente_id)
+    rows = await historial_cliente(
+        session, empresa_id=claims.empresa_id, cliente_id=cliente_id, limit=limit
+    )
+    items = [
+        HistorialEventoOut(
+            evento_id=r.evento_id,
+            accion=r.accion,
+            fecha=r.fecha,
+            detalles=r.detalles,
+        )
+        for r in rows
+    ]
+    return HistorialClienteOut(items=items, total=len(items))

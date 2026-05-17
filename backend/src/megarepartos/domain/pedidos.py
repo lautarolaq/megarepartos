@@ -44,6 +44,16 @@ class PendienteRow:
     fecha_link: datetime
 
 
+@dataclass(slots=True)
+class HistorialEvento:
+    """Una entrada del historial de un cliente (respuesta o link generado)."""
+
+    evento_id: uuid.UUID
+    accion: str  # "respondio_link" | "link_generado"
+    fecha: datetime
+    detalles: dict[str, Any] = field(default_factory=dict)
+
+
 async def listar_pedidos(
     session: AsyncSession,
     *,
@@ -236,6 +246,45 @@ async def listar_pendientes(
             cliente_nombre=r[1],
             cliente_telefono=r[2],
             fecha_link=r[3],
+        )
+        for r in rows
+    ]
+
+
+async def historial_cliente(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    cliente_id: uuid.UUID,
+    limit: int = 20,
+) -> list[HistorialEvento]:
+    """REQ-PED-007: lista las últimas N interacciones (link_generado y
+    respondio_link) de un cliente, orden fecha desc.
+    """
+    stmt = (
+        select(
+            EventoDominio.id,
+            EventoDominio.accion,
+            EventoDominio.fecha,
+            EventoDominio.detalles_jsonb,
+        )
+        .where(
+            EventoDominio.empresa_id == empresa_id,
+            EventoDominio.entidad_tipo == "cliente",
+            EventoDominio.entidad_id == cliente_id,
+            EventoDominio.accion.in_(["link_generado", "respondio_link"]),
+        )
+        .order_by(EventoDominio.fecha.desc())
+        .limit(limit)
+    )
+
+    rows = (await session.execute(stmt)).all()
+    return [
+        HistorialEvento(
+            evento_id=r[0],
+            accion=r[1],
+            fecha=r[2],
+            detalles=r[3] or {},
         )
         for r in rows
     ]

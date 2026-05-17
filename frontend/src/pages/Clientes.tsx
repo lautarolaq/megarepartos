@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Package, Pencil, Send, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 interface Cliente {
   id: string;
@@ -151,7 +152,14 @@ export function ClientesPage() {
               )}
               {data.items.map((c) => (
                 <tr key={c.id} className="border-t border-slate-200">
-                  <td className="px-4 py-2 font-medium">{c.nombre_completo}</td>
+                  <td className="px-4 py-2 font-medium">
+                    <RouterLink
+                      to={`/dashboard/clientes/${c.id}`}
+                      className="text-slate-800 hover:text-sky-600 hover:underline"
+                    >
+                      {c.nombre_completo}
+                    </RouterLink>
+                  </td>
                   <td className="px-4 py-2 text-slate-600">{c.telefono}</td>
                   <td className="px-4 py-2 text-slate-600">{c.direccion ?? "—"}</td>
                   <td className="px-4 py-2 text-slate-600">

@@ -1,4 +1,5 @@
 import { AuthCallbackPage } from "@/pages/AuthCallback";
+import { ClienteDetallePage } from "@/pages/ClienteDetalle";
 import { ClientesPage } from "@/pages/Clientes";
 import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
 import { EmpresaPage } from "@/pages/Empresa";
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="envases" element={<EnvasesPage />} />
         <Route path="zonas" element={<ZonasPage />} />
         <Route path="clientes" element={<ClientesPage />} />
+        <Route path="clientes/:id" element={<ClienteDetallePage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
         <Route path="empresa" element={<EmpresaPage />} />
       </Route>
