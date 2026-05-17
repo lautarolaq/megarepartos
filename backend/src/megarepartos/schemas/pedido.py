@@ -41,3 +41,12 @@ class PedidoListOut(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PedidoStatsOut(BaseModel):
+    """Resumen rápido para el dashboard."""
+
+    pedidos_hoy: int
+    confirmados_hoy: int
+    pedidos_semana: int
+    clientes_activos: int

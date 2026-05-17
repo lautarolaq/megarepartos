@@ -110,14 +110,86 @@ function NavItem({
   );
 }
 
+interface PedidoStats {
+  pedidos_hoy: number;
+  confirmados_hoy: number;
+  pedidos_semana: number;
+  clientes_activos: number;
+}
+
 export function DashboardIndex() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["pedidos-stats"],
+    queryFn: async (): Promise<PedidoStats> => (await api.get("/api/pedidos/stats")).data,
+    refetchInterval: 60_000,
+  });
+
   return (
     <div>
-      <h2 className="text-2xl font-semibold tracking-tight">Bienvenido</h2>
-      <p className="mt-2 text-sm text-slate-500">
-        Elegí una sección en el menú lateral. Productos y Clientes ya funcionan con listado y
-        creación; los demás vienen pronto.
+      <h2 className="text-2xl font-semibold tracking-tight">Resumen</h2>
+      {isLoading && <p className="mt-4 text-slate-500">Cargando…</p>}
+      {data && (
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Pedidos hoy"
+            value={data.pedidos_hoy}
+            hint={`${data.confirmados_hoy} confirmado${data.confirmados_hoy === 1 ? "" : "s"}`}
+            tone="sky"
+          />
+          <StatCard
+            label="Últimos 7 días"
+            value={data.pedidos_semana}
+            hint="respuestas recibidas"
+            tone="emerald"
+          />
+          <StatCard
+            label="Clientes activos"
+            value={data.clientes_activos}
+            hint="en tu base"
+            tone="slate"
+          />
+          <StatCard
+            label="Tasa hoy"
+            value={
+              data.pedidos_hoy === 0
+                ? "—"
+                : `${Math.round((data.confirmados_hoy / data.pedidos_hoy) * 100)}%`
+            }
+            hint="confirmaron del total"
+            tone="amber"
+          />
+        </div>
+      )}
+      <p className="mt-8 text-sm text-slate-500">
+        Mandá links a tus clientes desde <strong>Clientes</strong>, las respuestas aparecen en{" "}
+        <strong>Pedidos</strong>.
       </p>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  hint: string;
+  tone: "sky" | "emerald" | "slate" | "amber";
+}) {
+  const toneClasses: Record<typeof tone, string> = {
+    sky: "border-sky-200 bg-sky-50 text-sky-700",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    slate: "border-slate-200 bg-white text-slate-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+  };
+  return (
+    <div className={`rounded-xl border p-4 shadow-sm ${toneClasses[tone]}`}>
+      <p className="text-xs uppercase tracking-wider opacity-80">{label}</p>
+      <p className="mt-1 text-3xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs opacity-70">{hint}</p>
     </div>
   );
 }
