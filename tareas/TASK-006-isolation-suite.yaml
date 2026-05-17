@@ -1,0 +1,74 @@
+id: TASK-006
+nombre: "Suite base de aislamiento + check CI por-endpoint"
+tipo: feature
+sprint: 1
+prioridad: alta
+
+contexto: |
+  TASK-003 dejó RLS en Postgres + `set_tenant_context`. Esta tarea instala el
+  andamiaje para que el aislamiento se enforce a nivel **endpoint** en cada
+  feature siguiente:
+
+  1. **Helper `assert_endpoint_isolated`**: una sola función que un test de
+     endpoint llama para verificar que el endpoint X no devuelve/modifica datos
+     de empresa B desde un token de empresa A. Reemplaza ~30 líneas boilerplate
+     por una línea.
+
+  2. **Property-based test** (hypothesis): genera N empresas con M filas cada
+     una y verifica el invariante "SELECT desde contexto X solo devuelve filas
+     de X". Encuentra edge cases que tests determinísticos podrían perder.
+
+  3. **CI check** `scripts/check_endpoint_isolation.py`: parsea routers y
+     verifica que cada endpoint que usa `authenticated_session` tenga al menos
+     un test marcado con `@pytest.mark.isolation` que lo referencia. Falla
+     CI si un endpoint nuevo no trae su test de aislamiento.
+
+  Esto cierra el "Coverage de aislamiento al 100%" del Sprint 1 (sección 22 del
+  SPEC).
+
+comportamiento:
+  - "REQ-MT-009: `assert_endpoint_isolated(app_client, method, url, factory)` ejecuta el patrón estándar: setup empresa A + empresa B con data, llamada con token A, verifica que data de B no aparece en la respuesta ni se modifica."
+  - "REQ-MT-010: Property-based test sobre `cliente` con hypothesis: para cualquier conjunto válido de empresas/clientes, SELECT desde contexto X devuelve **exactamente** los clientes de X."
+  - "REQ-MT-011: `scripts/check_endpoint_isolation.py` lista los endpoints que usan `authenticated_session` y matchea cada uno contra un test `@pytest.mark.isolation` que lo referencia (vía path en la docstring o nombre del test)."
+  - "REQ-MT-012: El check de CI corre en el job `behavior-coverage` (mismo workflow) y falla si hay endpoints sin test de aislamiento."
+
+no_debe:
+  - "Forzar tests sobre los endpoints de `/api/auth/*` (no usan `authenticated_session` — son pre-tenant)."
+  - "Reemplazar los tests existentes de `test_aislamiento.py` (siguen siendo la base que verifica RLS habilitado y policies)."
+
+archivos_nuevos:
+  - "backend/tests/integration/_isolation_helpers.py"
+  - "backend/tests/integration/test_rls_property.py"
+  - "scripts/check_endpoint_isolation.py"
+
+archivos_a_modificar:
+  - ".github/workflows/ci.yml"  # llamar al script nuevo
+  - "behaviors/multi_tenant.md"  # REQ-MT-009..012 + patrón de uso
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"
+
+tests:
+  - "test_REQ_MT_009_helper_detecta_filtra_data_ajena_y_bloquea_modificacion"
+  - "test_REQ_MT_010_property_aislamiento_cliente_holds_para_n_empresas"
+  - "test_REQ_MT_011_check_endpoint_isolation_falla_si_falta_test"
+  - "test_REQ_MT_012_check_corre_en_ci"
+
+aceptacion:
+  - "make test verde"
+  - "make lint verde"
+  - "scripts/check_endpoint_isolation.py corre sin fallos (sin endpoints autenticados todavía → 0 violaciones)"
+  - "Property-based test corre con al menos 50 ejemplos generados"
+
+depende_de:
+  - "TASK-001"
+  - "TASK-002"
+  - "TASK-003"
+
+notas: |
+  El check de endpoint isolation NO va a tener nada que validar todavía (los
+  únicos endpoints existentes son `/api/auth/*` que son pre-tenant). Empieza
+  a hacer trabajo real cuando TASK-008+ aterricen CRUDs autenticados — esta
+  tarea instala el sistema antes para que esos TASKs no puedan mergear sin
+  tests de aislamiento.
