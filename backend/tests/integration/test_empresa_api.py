@@ -82,6 +82,42 @@ async def test_patch_empresa_me_admin(
 
 
 @pytest.mark.integration
+@pytest.mark.req("REQ-EMP-009")
+async def test_patch_mensaje_default_link(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """El mensaje_default_link se guarda en config_jsonb y vuelve en el GET."""
+    empresa = await make_empresa(db_session)
+    admin = await make_usuario(db_session, empresa=empresa, rol="admin")
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    headers = {
+        "Authorization": f"Bearer {_token(settings, usuario_id=admin.id, empresa_id=empresa.id)}"
+    }
+
+    msg = "Hola {nombre}! Confirmá tu pedido: {link}"
+    r1 = await app_client.patch(
+        "/api/empresa/me", headers=headers, json={"mensaje_default_link": msg}
+    )
+    assert r1.status_code == 200
+    assert r1.json()["mensaje_default_link"] == msg
+
+    # GET refleja el cambio.
+    r2 = await app_client.get("/api/empresa/me", headers=headers)
+    assert r2.status_code == 200
+    assert r2.json()["mensaje_default_link"] == msg
+
+    # Setear a None lo borra.
+    r3 = await app_client.patch(
+        "/api/empresa/me", headers=headers, json={"mensaje_default_link": None}
+    )
+    assert r3.status_code == 200
+    assert r3.json()["mensaje_default_link"] is None
+
+
+@pytest.mark.integration
 async def test_patch_empresa_me_no_admin_403(
     app_client: AsyncClient,
     db_session: AsyncSession,

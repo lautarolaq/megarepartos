@@ -7,10 +7,15 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from megarepartos.domain._events import event_recorder
 from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.models.empresa import Empresa
+
+# Campos que viven en `empresa.config_jsonb` en vez de columnas directas.
+# La capa api/ los expone como atributos top-level del schema EmpresaOut.
+CONFIG_KEYS: frozenset[str] = frozenset({"mensaje_default_link"})
 
 
 async def obtener_empresa(session: AsyncSession, *, empresa_id: uuid.UUID) -> Empresa:
@@ -30,18 +35,38 @@ async def actualizar_empresa(
     usuario_id: uuid.UUID,
     cambios: dict[str, Any],
 ) -> Empresa:
-    """REQ-EMP-007: admin actualiza datos de su propia empresa."""
+    """REQ-EMP-007: admin actualiza datos de su propia empresa.
+
+    Campos en `CONFIG_KEYS` se persisten en `config_jsonb` (no en columnas).
+    """
     empresa = await obtener_empresa(session, empresa_id=empresa_id)
 
     if "nombre" in cambios and cambios["nombre"] is not None:
         cambios["nombre"] = cambios["nombre"].strip()
 
     diff: dict[str, dict[str, Any]] = {}
+    config = dict(empresa.config_jsonb or {})
+    config_dirty = False
+
     for campo, nuevo in cambios.items():
+        if campo in CONFIG_KEYS:
+            anterior = config.get(campo)
+            if anterior != nuevo:
+                diff[campo] = {"de": anterior, "a": nuevo}
+                if nuevo is None:
+                    config.pop(campo, None)
+                else:
+                    config[campo] = nuevo
+                config_dirty = True
+            continue
         anterior = getattr(empresa, campo)
         if anterior != nuevo:
             diff[campo] = {"de": anterior, "a": nuevo}
             setattr(empresa, campo, nuevo)
+
+    if config_dirty:
+        empresa.config_jsonb = config
+        flag_modified(empresa, "config_jsonb")
 
     if not diff:
         return empresa

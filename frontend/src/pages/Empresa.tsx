@@ -11,6 +11,7 @@ interface Empresa {
   estado_suscripcion: string;
   direccion_deposito: string | null;
   timezone: string;
+  mensaje_default_link: string | null;
 }
 
 type TipoNegocio = "soderia" | "garrafas" | "verduras" | "viandas" | "distribuidora" | "otro";
@@ -24,6 +25,9 @@ const TIPOS: { value: TipoNegocio; label: string }[] = [
   { value: "otro", label: "Otro" },
 ];
 
+export const MENSAJE_DEFAULT =
+  "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}";
+
 export function EmpresaPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -34,6 +38,7 @@ export function EmpresaPage() {
   const [nombre, setNombre] = useState("");
   const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio>("soderia");
   const [direccion, setDireccion] = useState("");
+  const [mensaje, setMensaje] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,16 +47,22 @@ export function EmpresaPage() {
       setNombre(data.nombre);
       setTipoNegocio((data.tipo_negocio as TipoNegocio) ?? "otro");
       setDireccion(data.direccion_deposito ?? "");
+      setMensaje(data.mensaje_default_link ?? MENSAJE_DEFAULT);
     }
   }, [data]);
 
   const guardar = useMutation({
-    mutationFn: async () =>
-      api.patch("/api/empresa/me", {
+    mutationFn: async () => {
+      const trimmed = mensaje.trim();
+      return api.patch("/api/empresa/me", {
         nombre,
         tipo_negocio: tipoNegocio,
         direccion_deposito: direccion || null,
-      }),
+        // Sólo guardar el mensaje si difiere del default, así el campo en DB
+        // se mantiene NULL para users que no editaron.
+        mensaje_default_link: trimmed && trimmed !== MENSAJE_DEFAULT ? trimmed : null,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["empresa-me"] });
       qc.invalidateQueries({ queryKey: ["me"] });
@@ -102,6 +113,19 @@ export function EmpresaPage() {
           onChange={(e) => setDireccion(e.target.value)}
           placeholder="Av. Colón 123"
         />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">Mensaje del link de WhatsApp</span>
+          <span className="text-xs text-slate-500">
+            Variables disponibles: <code>{"{nombre}"}</code> (primer nombre del cliente) y{" "}
+            <code>{"{link}"}</code> (URL del link público).
+          </span>
+          <textarea
+            rows={4}
+            value={mensaje}
+            onChange={(e) => setMensaje(e.target.value)}
+            className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </label>
 
         {data && (
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">

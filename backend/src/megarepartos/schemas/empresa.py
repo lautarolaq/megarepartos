@@ -11,6 +11,10 @@ TipoNegocio = Literal["soderia", "garrafas", "verduras", "viandas", "distribuido
 
 
 class EmpresaOut(BaseModel):
+    """No usa from_attributes porque `mensaje_default_link` se lee de
+    `config_jsonb`, no es una columna directa.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -19,6 +23,7 @@ class EmpresaOut(BaseModel):
     estado_suscripcion: str
     direccion_deposito: str | None
     timezone: str
+    mensaje_default_link: str | None = None
 
 
 class EmpresaUpdate(BaseModel):
@@ -26,3 +31,6 @@ class EmpresaUpdate(BaseModel):
     tipo_negocio: TipoNegocio | None = None
     direccion_deposito: str | None = Field(default=None, max_length=512)
     timezone: str | None = Field(default=None, max_length=64)
+    # Plantilla para el mensaje de WhatsApp al mandar el link. Soporta
+    # variables {nombre} y {link}. Persiste en empresa.config_jsonb.
+    mensaje_default_link: str | None = Field(default=None, max_length=2048)
