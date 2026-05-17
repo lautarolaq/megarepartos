@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.domain._events import event_recorder
 from megarepartos.domain._repository import exists_in_empresa, get_or_404
+from megarepartos.infra import geocoding
 from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.models.cliente import Cliente
 from megarepartos.models.zona import Zona
@@ -126,12 +127,17 @@ async def crear_cliente(
     await _validar_zona(session, empresa_id=empresa_id, zona_id=zona_id)
     telefono_norm = normalizar_telefono(telefono)
 
+    # REQ-GEO-004: best-effort geocoding si hay dirección.
+    coords = await geocoding.geocodear(direccion) if direccion else None
+
     cliente = Cliente(
         empresa_id=empresa_id,
         nombre_completo=nombre_completo.strip(),
         telefono=telefono_norm,
         email=email,
         direccion=direccion,
+        coordenadas_lat=coords[0] if coords else None,
+        coordenadas_lng=coords[1] if coords else None,
         zona_id=zona_id,
         modalidad=modalidad,
         frecuencia=frecuencia,
@@ -173,6 +179,12 @@ async def actualizar_cliente(
         cambios["telefono"] = normalizar_telefono(cambios["telefono"])
     if "nombre_completo" in cambios and cambios["nombre_completo"] is not None:
         cambios["nombre_completo"] = cambios["nombre_completo"].strip()
+    # REQ-GEO-004: re-geocodear si cambia dirección.
+    if cambios.get("direccion"):
+        coords = await geocoding.geocodear(cambios["direccion"])
+        if coords is not None:
+            cambios["coordenadas_lat"] = coords[0]
+            cambios["coordenadas_lng"] = coords[1]
 
     diff: dict[str, dict[str, Any]] = {}
     for campo, nuevo in cambios.items():

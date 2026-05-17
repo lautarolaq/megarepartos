@@ -1,0 +1,57 @@
+id: TASK-012
+nombre: "CRUD usuarios (gestión interna)"
+tipo: feature
+sprint: 2
+prioridad: alta
+
+contexto: |
+  Admin gestiona los usuarios de su empresa: listar, cambiar rol, desactivar.
+  La creación de usuarios sigue siendo via login OAuth (TASK-001/002) — este
+  TASK NO incluye flujo de invitación todavía (TASK posterior cuando agreguemos
+  emails transaccionales).
+
+  Endpoints:
+    - GET    /api/usuarios           listado de la empresa
+    - GET    /api/usuarios/{id}      detalle
+    - PATCH  /api/usuarios/{id}      cambiar rol o activar/desactivar (admin)
+    - DELETE /api/usuarios/{id}      desactivar (admin)
+
+  NO permite crear usuarios desde acá — eso pasa solo via OAuth (REQ-EMP-001).
+  POST no existe.
+
+comportamiento:
+  - "REQ-USR-001: GET /api/usuarios lista usuarios de la empresa del JWT, ordenados por nombre."
+  - "REQ-USR-002: GET /api/usuarios?activo=true filtra por activo."
+  - "REQ-USR-003: GET /api/usuarios/{id} ajeno devuelve 404."
+  - "REQ-USR-004: PATCH /api/usuarios/{id} cambia rol (admin only)."
+  - "REQ-USR-005: PATCH con rol inválido (no admin ni operador) devuelve 400."
+  - "REQ-USR-006: PATCH como operador devuelve 403."
+  - "REQ-USR-007: DELETE /api/usuarios/{id} desactiva (admin only)."
+  - "REQ-USR-008: Admin NO puede desactivarse a sí mismo (CONFLICTO_ESTADO 409)."
+  - "REQ-USR-009: Eventos generados por cada PATCH/DELETE."
+
+no_debe:
+  - "Permitir POST /api/usuarios (creación pasa solo por OAuth)."
+  - "Permitir cambiar email, google_oauth_token o empresa_id."
+  - "Permitir auto-desactivación (evita lockout)."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/schemas/usuario.py"
+  - "backend/src/megarepartos/domain/usuarios.py"
+  - "backend/src/megarepartos/api/usuarios.py"
+  - "behaviors/usuarios.md"
+  - "backend/tests/integration/test_usuarios_api.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/main.py"
+
+depende_de:
+  - "TASK-007"
+  - "TASK-008"
+
+notas: |
+  Flujo de invitar usuario por email + magic link es TASK posterior (necesita
+  email transaccional). MVP: admin le pasa el link del login al nuevo usuario,
+  y al hacer su primer OAuth, se crea con rol "operador" si la empresa ya
+  existe (NO se crea otra empresa). Eso requiere refinar `login_or_create_user`,
+  pero por ahora aceptamos que cada nuevo email genera nueva empresa.
