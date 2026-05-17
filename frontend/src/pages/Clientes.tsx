@@ -24,12 +24,18 @@ interface ClienteListResp {
   offset: number;
 }
 
+interface LinkGenerado {
+  cliente: Cliente;
+  url: string;
+}
+
 export function ClientesPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
   const [openCreate, setOpenCreate] = useState(false);
   const [clienteHabituales, setClienteHabituales] = useState<Cliente | null>(null);
+  const [linkGenerado, setLinkGenerado] = useState<LinkGenerado | null>(null);
 
   // Debounce simple sin librería: 300ms.
   useEffect(() => {
@@ -53,16 +59,11 @@ export function ClientesPage() {
   });
 
   const generarLinkMut = useMutation({
-    mutationFn: async (id: string) => api.post<{ url: string }>(`/api/clientes/${id}/generar-link`),
-    onSuccess: async (resp) => {
-      const url = resp.data.url;
-      try {
-        await navigator.clipboard.writeText(url);
-        alert(`Link copiado al portapapeles:\n\n${url}`);
-      } catch {
-        alert(`Link generado:\n\n${url}\n\n(no se pudo copiar automático)`);
-      }
+    mutationFn: async (cliente: Cliente) => {
+      const resp = await api.post<{ url: string }>(`/api/clientes/${cliente.id}/generar-link`);
+      return { cliente, url: resp.data.url };
     },
+    onSuccess: (data) => setLinkGenerado(data),
   });
 
   return (
@@ -134,8 +135,9 @@ export function ClientesPage() {
                         <button
                           type="button"
                           className="text-sky-600 hover:text-sky-800"
-                          title="Generar link público"
-                          onClick={() => generarLinkMut.mutate(c.id)}
+                          title="Enviar link por WhatsApp"
+                          onClick={() => generarLinkMut.mutate(c)}
+                          disabled={generarLinkMut.isPending}
                         >
                           <Link2 size={16} />
                         </button>
@@ -166,7 +168,98 @@ export function ClientesPage() {
         cliente={clienteHabituales}
         onClose={() => setClienteHabituales(null)}
       />
+      <EnviarLinkModal data={linkGenerado} onClose={() => setLinkGenerado(null)} />
     </div>
+  );
+}
+
+function soloNumeros(s: string): string {
+  return s.replace(/\D/g, "");
+}
+
+function EnviarLinkModal({
+  data,
+  onClose,
+}: {
+  data: LinkGenerado | null;
+  onClose: () => void;
+}) {
+  const primerNombre = data?.cliente.nombre_completo.split(" ")[0] ?? "";
+  const mensajeDefault = data
+    ? `Hola ${primerNombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n${data.url}`
+    : "";
+  const [mensaje, setMensaje] = useState(mensajeDefault);
+  const [copiado, setCopiado] = useState<"link" | "mensaje" | null>(null);
+
+  useEffect(() => {
+    setMensaje(mensajeDefault);
+    setCopiado(null);
+  }, [mensajeDefault]);
+
+  if (!data) return null;
+
+  const telDigits = soloNumeros(data.cliente.telefono);
+  const waUrl = `https://wa.me/${telDigits}?text=${encodeURIComponent(mensaje)}`;
+
+  async function copiar(qué: "link" | "mensaje") {
+    const texto = qué === "link" ? data!.url : mensaje;
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(qué);
+      setTimeout(() => setCopiado(null), 2000);
+    } catch {
+      // fallback nada — el usuario puede copiar manualmente.
+    }
+  }
+
+  return (
+    <Modal open={!!data} onClose={onClose} title={`Enviar link a ${primerNombre}`}>
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            Link
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              readOnly
+              value={data.url}
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700"
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button variant="ghost" onClick={() => copiar("link")}>
+              {copiado === "link" ? "✓ Copiado" : "Copiar"}
+            </Button>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            Mensaje
+          </label>
+          <textarea
+            rows={5}
+            value={mensaje}
+            onChange={(e) => setMensaje(e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </div>
+
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button variant="ghost" onClick={() => copiar("mensaje")}>
+            {copiado === "mensaje" ? "✓ Mensaje copiado" : "Copiar mensaje"}
+          </Button>
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+            onClick={onClose}
+          >
+            Abrir WhatsApp
+          </a>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
