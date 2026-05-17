@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Trash2 } from "lucide-react";
+import { Link2, Package, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Cliente {
@@ -29,6 +29,7 @@ export function ClientesPage() {
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
   const [openCreate, setOpenCreate] = useState(false);
+  const [clienteHabituales, setClienteHabituales] = useState<Cliente | null>(null);
 
   // Debounce simple sin librería: 300ms.
   useEffect(() => {
@@ -124,6 +125,14 @@ export function ClientesPage() {
                       <div className="flex justify-end gap-3">
                         <button
                           type="button"
+                          className="text-slate-600 hover:text-slate-800"
+                          title="Productos habituales"
+                          onClick={() => setClienteHabituales(c)}
+                        >
+                          <Package size={16} />
+                        </button>
+                        <button
+                          type="button"
                           className="text-sky-600 hover:text-sky-800"
                           title="Generar link público"
                           onClick={() => generarLinkMut.mutate(c.id)}
@@ -153,7 +162,174 @@ export function ClientesPage() {
       )}
 
       <CrearClienteModal open={openCreate} onClose={() => setOpenCreate(false)} />
+      <HabitualesModal
+        cliente={clienteHabituales}
+        onClose={() => setClienteHabituales(null)}
+      />
     </div>
+  );
+}
+
+interface Producto {
+  id: string;
+  nombre: string;
+  es_retornable: boolean;
+  activo: boolean;
+}
+
+interface HabitualItem {
+  producto_id: string;
+  cantidad: number;
+  nombre: string;
+  es_retornable: boolean;
+}
+
+function HabitualesModal({
+  cliente,
+  onClose,
+}: {
+  cliente: Cliente | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [items, setItems] = useState<HabitualItem[]>([]);
+  const [agregarId, setAgregarId] = useState<string>("");
+
+  const { data: habituales, isLoading } = useQuery({
+    queryKey: ["habituales", cliente?.id],
+    queryFn: async (): Promise<{ items: HabitualItem[] }> =>
+      (await api.get(`/api/clientes/${cliente!.id}/productos-habituales`)).data,
+    enabled: !!cliente,
+  });
+
+  const { data: productos } = useQuery({
+    queryKey: ["productos"],
+    queryFn: async (): Promise<{ items: Producto[] }> => (await api.get("/api/productos")).data,
+    enabled: !!cliente,
+  });
+
+  useEffect(() => {
+    if (habituales) setItems(habituales.items);
+  }, [habituales]);
+
+  const guardar = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        items: items.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad })),
+      };
+      return api.put(`/api/clientes/${cliente!.id}/productos-habituales`, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["habituales", cliente?.id] });
+      onClose();
+    },
+  });
+
+  function setCantidad(producto_id: string, cantidad: number) {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.producto_id === producto_id ? { ...it, cantidad: Math.max(0, cantidad) } : it
+      )
+    );
+  }
+
+  function quitar(producto_id: string) {
+    setItems((prev) => prev.filter((it) => it.producto_id !== producto_id));
+  }
+
+  function agregar() {
+    if (!agregarId || !productos) return;
+    const prod = productos.items.find((p) => p.id === agregarId);
+    if (!prod) return;
+    if (items.some((it) => it.producto_id === prod.id)) return;
+    setItems((prev) => [
+      ...prev,
+      { producto_id: prod.id, cantidad: 1, nombre: prod.nombre, es_retornable: prod.es_retornable },
+    ]);
+    setAgregarId("");
+  }
+
+  const disponibles =
+    productos?.items.filter(
+      (p) => p.activo && !items.some((it) => it.producto_id === p.id)
+    ) ?? [];
+
+  return (
+    <Modal
+      open={!!cliente}
+      onClose={onClose}
+      title={cliente ? `Productos habituales — ${cliente.nombre_completo}` : ""}
+    >
+      <div className="flex flex-col gap-3">
+        {isLoading && <p className="text-sm text-slate-500">Cargando…</p>}
+
+        {!isLoading && items.length === 0 && (
+          <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-500">
+            Sin productos habituales. Agregá los que el cliente compra siempre — se prefijan en el
+            link público.
+          </p>
+        )}
+
+        {items.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {items.map((it) => (
+              <li
+                key={it.producto_id}
+                className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2"
+              >
+                <span className="flex-1 truncate text-sm font-medium text-slate-700">
+                  {it.nombre}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={it.cantidad}
+                  onChange={(e) => setCantidad(it.producto_id, Number(e.target.value))}
+                  className="w-16 rounded-md border border-slate-300 px-2 py-1 text-right text-sm"
+                />
+                <button
+                  type="button"
+                  className="text-rose-500 hover:text-rose-700"
+                  onClick={() => quitar(it.producto_id)}
+                  title="Quitar"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {disponibles.length > 0 && (
+          <div className="mt-2 flex gap-2">
+            <select
+              value={agregarId}
+              onChange={(e) => setAgregarId(e.target.value)}
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Agregar producto…</option>
+              {disponibles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+            <Button variant="ghost" onClick={agregar} disabled={!agregarId}>
+              + Agregar
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-3 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={() => guardar.mutate()} disabled={guardar.isPending}>
+            {guardar.isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

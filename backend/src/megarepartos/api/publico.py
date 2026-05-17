@@ -18,6 +18,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.config import Settings, get_settings
+from megarepartos.domain._events import event_recorder
 from megarepartos.infra.auth import verify_link_token
 from megarepartos.infra.db import get_session
 from megarepartos.infra.errors import ApiError, ErrorCode
@@ -112,28 +113,67 @@ async def registrar_respuesta(
 ) -> dict[str, bool]:
     """REQ-LINK-005: registra la respuesta del cliente.
 
-    Por ahora loggea — la persistencia en `respuesta_link` requiere
-    `mensaje_enviado_id` que viene de Sprint 5 (campañas).
+    Persiste como `evento_dominio` con `accion="respondio_link"`. La tabla
+    `respuesta_link` espera `mensaje_enviado_id` (Sprint 5), pero los eventos
+    nos alcanzan para mostrar pedidos en el dashboard ya.
     """
     cliente_id = verify_link_token(settings, token)
 
     await session.execute(text("RESET ROLE"))
-    row = (
+    empresa_id = (
         await session.execute(
             text("SELECT empresa_id FROM cliente WHERE id = :id AND activo = true"),
             {"id": cliente_id},
         )
     ).scalar_one_or_none()
-    if row is None:
+    if empresa_id is None:
         raise ApiError(ErrorCode.RECURSO_NO_ENCONTRADO, "El link no es válido.")
+
+    # Resolver nombres de productos para guardarlos en el evento. Así el
+    # listado de pedidos en el dashboard no tiene que joinear con `producto`
+    # (y muestra el nombre congelado al momento del pedido).
+    productos_detalle: list[dict[str, object]] = []
+    if payload.productos:
+        producto_ids = [p.producto_id for p in payload.productos]
+        nombres_rows = (
+            await session.execute(
+                text("SELECT id::text, nombre, es_retornable FROM producto WHERE id = ANY(:ids)"),
+                {"ids": producto_ids},
+            )
+        ).all()
+        nombres = {r[0]: (r[1], r[2]) for r in nombres_rows}
+        for p in payload.productos:
+            nombre, es_retornable = nombres.get(p.producto_id, (p.producto_id, False))
+            productos_detalle.append(
+                {
+                    "producto_id": p.producto_id,
+                    "nombre": nombre,
+                    "cantidad_llenos": p.cantidad_llenos,
+                    "cantidad_vacios": p.cantidad_vacios,
+                    "es_retornable": es_retornable,
+                }
+            )
 
     _logger.info(
         "publico.respuesta",
         cliente_id=str(cliente_id),
-        empresa_id=str(row),
+        empresa_id=str(empresa_id),
         accion=payload.accion,
-        productos=[p.model_dump() for p in payload.productos],
+        productos=productos_detalle,
         observacion=payload.observacion,
     )
 
+    async with event_recorder(
+        session,
+        empresa_id=empresa_id,
+        usuario_id=None,
+        entidad_tipo="cliente",
+        accion="respondio_link",
+    ) as ev:
+        ev.entidad_id = cliente_id
+        ev.detalles["accion"] = payload.accion
+        ev.detalles["productos"] = productos_detalle
+        ev.detalles["observacion"] = payload.observacion
+
+    await session.commit()
     return {"ok": True}
