@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos import __version__
 from megarepartos.api import auth as auth_router
+from megarepartos.api import productos as productos_router
 from megarepartos.config import get_settings
+from megarepartos.infra.audit_context import AuditContextMiddleware
 from megarepartos.infra.db import engine, get_session
 from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.infra.logging import configure_logging, get_logger
@@ -44,7 +46,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Middleware antes de los routers — captura request_id, ip, user_agent para
+# que `event_recorder` los lea desde contextvars.
+app.add_middleware(AuditContextMiddleware)
+
 app.include_router(auth_router.router)
+app.include_router(productos_router.router)
 
 
 @app.exception_handler(ApiError)

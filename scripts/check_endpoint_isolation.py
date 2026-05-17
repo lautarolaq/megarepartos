@@ -57,13 +57,42 @@ def _decorator_method_and_path(decorator: ast.AST) -> tuple[str, str] | None:
     return func.attr.upper(), path
 
 
-def _function_uses_dependency(func_node: ast.AsyncFunctionDef | ast.FunctionDef, name: str) -> bool:
-    """`True` si la función tiene un parámetro con `Depends(<name>)` o referencia
-    a `<name>` en su anotación (sirve para `Annotated[..., Depends(name)]`).
+def _function_uses_dependency(
+    func_node: ast.AsyncFunctionDef | ast.FunctionDef,
+    name: str,
+    *,
+    module_aliases: frozenset[str] = frozenset(),
+) -> bool:
+    """`True` si la función usa la dep `name` directamente o vía un alias
+    type definido a nivel módulo (`SessionDep = Annotated[..., Depends(name)]`).
     """
     src = ast.unparse(func_node)
-    # Match `Depends(<name>` o `Annotated[..., Depends(<name>`.
-    return re.search(rf"\bDepends\(\s*{re.escape(name)}\b", src) is not None
+    if re.search(rf"\bDepends\(\s*{re.escape(name)}\b", src) is not None:
+        return True
+    # Cualquier alias del módulo que esté en la signature.
+    for alias in module_aliases:
+        if re.search(rf"\b{re.escape(alias)}\b", src):
+            return True
+    return False
+
+
+def _aliases_referencing(tree: ast.AST, name: str) -> frozenset[str]:
+    """Encuentra `Alias = Annotated[..., Depends(<name>)]` a nivel módulo.
+
+    Devuelve los nombres de los aliases (para que `_function_uses_dependency`
+    los considere como "usar la dep").
+    """
+    out: set[str] = set()
+    for node in ast.iter_child_nodes(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        rendered = ast.unparse(node.value)
+        if re.search(rf"\bDepends\(\s*{re.escape(name)}\b", rendered) is None:
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                out.add(target.id)
+    return frozenset(out)
 
 
 def _router_prefix(tree: ast.AST) -> str:
@@ -85,6 +114,7 @@ def find_endpoints() -> list[Endpoint]:
             continue
         tree = ast.parse(py.read_text(encoding="utf-8"))
         prefix = _router_prefix(tree)
+        module_aliases = _aliases_referencing(tree, "authenticated_session")
         for node in ast.walk(tree):
             if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
                 continue
@@ -94,7 +124,9 @@ def find_endpoints() -> list[Endpoint]:
                     continue
                 method, path = parsed
                 full_path = f"{prefix}{path}"
-                if not _function_uses_dependency(node, "authenticated_session"):
+                if not _function_uses_dependency(
+                    node, "authenticated_session", module_aliases=module_aliases
+                ):
                     continue
                 endpoints.append(
                     Endpoint(file=py, func_name=node.name, http_method=method, path=full_path)

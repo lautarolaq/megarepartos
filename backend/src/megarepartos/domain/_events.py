@@ -2,9 +2,9 @@
 
 Regla CLAUDE.md Backend #2: "Toda operación de escritura usa `event_recorder`".
 
-En TASK-001/002 este módulo es un stub: registra el evento en `evento_dominio` con
-información mínima. TASK-005 lo completa con diff de campos, request_id,
-ip_origen, user_agent.
+Captura automáticamente `request_id`, `ip_origen` y `user_agent` desde las
+contextvars que setea `AuditContextMiddleware`. Fuera de un request HTTP
+(crons, tests directos), esos campos quedan en NULL.
 
 Uso:
 
@@ -13,16 +13,15 @@ async with event_recorder(
     session,
     empresa_id=empresa.id,
     usuario_id=usuario.id,
-    entidad_tipo="usuario",
+    entidad_tipo="producto",
     accion="creado",
 ) as ev:
-    ev.detalles["email"] = email
-    # ... operaciones de escritura ...
+    ev.entidad_id = producto.id
+    ev.detalles["nombre"] = producto.nombre
 ```
 
 Al salir del context manager, se persiste el `EventoDominio`. Si la operación
-falla y se hace rollback, el evento también se rollbackea (vive en la misma
-transacción).
+falla y la transacción se rollbackea, el evento también.
 """
 
 from __future__ import annotations
@@ -35,13 +34,19 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from megarepartos.infra.audit_context import (
+    current_ip_origen,
+    current_request_id,
+    current_user_agent,
+)
+from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.models.evento import EventoDominio
 
 
 @dataclass(slots=True)
 class _EventoCtx:
     """Handle expuesto dentro del `async with event_recorder(...)` para que el
-    caller pueda llenar `detalles` antes de que se persista.
+    caller pueda llenar `entidad_id` y `detalles` antes de que se persista.
     """
 
     entidad_id: uuid.UUID | None = None
@@ -59,13 +64,20 @@ async def event_recorder(
 ) -> AsyncIterator[_EventoCtx]:
     """Context manager que persiste un `EventoDominio` al salir.
 
-    No hace `commit`: queda en la transacción del caller. Si la transacción
-    se rollbackea, el evento también.
+    No hace `commit`: queda en la transacción del caller.
     """
+    if empresa_id is None:  # type: ignore[unreachable]  # defensa en runtime
+        raise ApiError(ErrorCode.INTERNO, "event_recorder requiere empresa_id (REQ-AUD-005).")
+
     ctx = _EventoCtx()
     try:
         yield ctx
     finally:
+        # Inyectar contexto del request si está disponible.
+        request_id = current_request_id.get()
+        if request_id is not None:
+            ctx.detalles.setdefault("request_id", request_id)
+
         evento = EventoDominio(
             empresa_id=empresa_id,
             usuario_id=usuario_id,
@@ -73,7 +85,8 @@ async def event_recorder(
             entidad_id=ctx.entidad_id,
             accion=accion,
             detalles_jsonb=ctx.detalles,
+            ip_origen=current_ip_origen.get(),
+            user_agent=current_user_agent.get(),
         )
         session.add(evento)
-        # Flush para que se asigne el id pero sin commit (el caller controla).
         await session.flush()

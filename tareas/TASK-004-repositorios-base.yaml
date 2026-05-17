@@ -1,0 +1,50 @@
+id: TASK-004
+nombre: "Repositorios base con empresa_id automático"
+tipo: feature
+sprint: 1
+prioridad: media
+
+contexto: |
+  Capa 2 de la defensa multi-tenant (Capa 1 = JWT, Capa 3 = RLS). Toda
+  query a tablas de negocio debe filtrar por `empresa_id` del usuario logueado.
+  RLS lo enforcea a nivel DB, pero el código de aplicación también filtra
+  explícito — defensa en profundidad.
+
+  Esta tarea instala helpers en `domain/_repository.py` que cualquier módulo
+  de dominio puede usar para operaciones comunes (get/list/create/delete)
+  sin escribir queries crudas. Los helpers siempre filtran por
+  `empresa_id = claims.empresa_id`.
+
+comportamiento:
+  - "REQ-REPO-001: `get_or_404(session, model, id, empresa_id)` devuelve el objeto si pertenece a la empresa, sino levanta `ApiError(RECURSO_NO_ENCONTRADO)`."
+  - "REQ-REPO-002: `list_by_empresa(session, model, empresa_id, *, filters=None)` devuelve solo rows de esa empresa."
+  - "REQ-REPO-003: La empresa_id pasada al helper se compara contra `model.empresa_id` con `==`, no se confía en RLS sola."
+
+no_debe:
+  - "Hacer queries sin empresa_id explícito (regla CLAUDE.md Backend #1)."
+  - "Exponer modelos directamente al router — los routers usan schemas."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/domain/_repository.py"
+
+archivos_a_modificar: []
+
+archivos_NO_tocar:
+  - "extension/**"
+
+tests:
+  - "test_REQ_REPO_001_get_or_404_devuelve_objeto_de_la_empresa"
+  - "test_REQ_REPO_001_get_or_404_levanta_404_si_pertenece_a_otra"
+  - "test_REQ_REPO_002_list_by_empresa_filtra_correctamente"
+
+aceptacion:
+  - "make test verde"
+  - "Helpers usados en TASK-008+"
+
+depende_de:
+  - "TASK-003"
+
+notas: |
+  Mantenemos la implementación minimalista: módulo de helpers, no clase
+  abstracta. Si en TASK-011+ aparece duplicación obvia (paginación,
+  búsqueda difusa) se promueve a una clase.

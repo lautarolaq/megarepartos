@@ -254,6 +254,36 @@ async def authenticated_session(
     yield session
 
 
+def require_rol(*roles_permitidos: str) -> Callable[[TokenClaims], TokenClaims]:
+    """Factory de dependencia FastAPI: exige que `claims.rol` esté en `roles_permitidos`.
+
+    Uso:
+
+        @router.post("/productos")
+        async def crear(
+            _admin: Annotated[TokenClaims, Depends(require_rol("admin"))],
+            ...
+        ): ...
+
+    Levanta `ApiError(PERMISO_DENEGADO)` (403) si el rol no matchea. Mensaje
+    genérico — no leakea qué roles serían válidos (REQ-ROL-004).
+    """
+    if not roles_permitidos:
+        raise ValueError("require_rol necesita al menos un rol permitido.")
+
+    permitidos = frozenset(roles_permitidos)
+
+    def _checker(claims: Annotated[TokenClaims, Depends(current_claims)]) -> TokenClaims:
+        if claims.rol not in permitidos:
+            raise ApiError(
+                ErrorCode.PERMISO_DENEGADO,
+                "No tenés permiso para esta acción.",
+            )
+        return claims
+
+    return _checker
+
+
 # Cookie helpers -----------------------------------------------------------
 
 REFRESH_COOKIE_NAME = "mr_refresh"
