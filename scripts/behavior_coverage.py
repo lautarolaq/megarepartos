@@ -19,6 +19,11 @@ TESTS_DIR = ROOT / "backend" / "tests"
 
 REQ_PATTERN = re.compile(r"\bREQ-[A-Z]+-\d+\b")
 
+# REQ-IDs cuyo prefijo se chequea con otra capa (no pytest). Ej: REQ-FE-* son
+# behaviors del frontend que se cubren con E2E (Playwright, TASK-Sprint-10)
+# o smoke manual, no con tests unit/integration del backend.
+EXCLUDED_PREFIXES: tuple[str, ...] = ("REQ-FE-",)
+
 
 def collect_reqs_from_behaviors() -> set[str]:
     reqs: set[str] = set()
@@ -43,6 +48,9 @@ def collect_reqs_from_tests() -> set[str]:
 def main() -> int:
     declared = collect_reqs_from_behaviors()
     covered = collect_reqs_from_tests()
+
+    # Filtrar los prefijos excluidos (cubiertos por E2E o smoke manual).
+    declared = {r for r in declared if not r.startswith(EXCLUDED_PREFIXES)}
 
     missing = sorted(declared - covered)
     if missing:
