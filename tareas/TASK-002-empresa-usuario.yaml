@@ -1,0 +1,60 @@
+id: TASK-002
+nombre: "Modelo empresa + usuario + creación al primer login"
+tipo: feature
+sprint: 1
+prioridad: alta
+
+contexto: |
+  Cuando un usuario hace login con Google por primera vez, no existe ni su
+  `Usuario` ni su `Empresa`. La primera autenticación tiene que:
+
+    1. Buscar `Usuario` por email global (case-insensitive).
+    2. Si existe → actualizar `ultima_sesion`, devolver `(empresa, usuario)`.
+    3. Si no existe → crear `Empresa` con nombre placeholder ("Empresa de {nombre}")
+       y `Usuario` como `admin` de esa empresa. Onboarding wizard (TASK-048+)
+       cambia el nombre + tipo_negocio después.
+
+  Esta tarea se entrega en el mismo PR que TASK-001 porque el flow de OAuth
+  no se puede testear end-to-end sin user creation.
+
+comportamiento:
+  - "REQ-EMP-001: `login_or_create_user(google_sub, email, nombre)` con email nuevo crea Empresa + Usuario con rol admin."
+  - "REQ-EMP-002: El email se normaliza a lowercase antes de buscar/crear."
+  - "REQ-EMP-003: `login_or_create_user` con email existente actualiza `ultima_sesion` y devuelve el (Empresa, Usuario) existentes."
+  - "REQ-EMP-004: Empresa creada inicializa estado_suscripcion='trial' y timezone='America/Argentina/Cordoba'."
+  - "REQ-EMP-005: Usuario creado tiene activo=true y rol='admin'."
+  - "REQ-EMP-006: Si el Usuario existe pero está inactivo (activo=false), `login_or_create_user` devuelve error CONFLICTO_ESTADO."
+
+no_debe:
+  - "Crear duplicados si el mismo email loguea concurrentemente (usar transacción + UPSERT o lock pesimista)."
+  - "Persistir el id_token de Google (solo se usa para verificación)."
+  - "Crear Empresa cuando el Usuario ya existe."
+
+archivos_nuevos: []  # todos cubiertos por TASK-001 (mismo PR)
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/domain/auth.py"  # función login_or_create_user
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"
+
+tests:
+  - "test_REQ_EMP_001_primer_login_crea_empresa_y_usuario_admin"
+  - "test_REQ_EMP_002_email_normalizado_a_lowercase"
+  - "test_REQ_EMP_003_login_existente_actualiza_ultima_sesion"
+  - "test_REQ_EMP_004_empresa_inicializa_con_trial_y_timezone_default"
+  - "test_REQ_EMP_005_usuario_creado_es_admin_y_activo"
+  - "test_REQ_EMP_006_login_con_usuario_inactivo_devuelve_409"
+
+aceptacion:
+  - "make test verde"
+  - "Test de concurrencia: dos llamadas paralelas con mismo email no crean duplicados"
+
+depende_de:
+  - "TASK-000"
+  - "TASK-001"  # mismo PR
+
+notas: |
+  Multi-tenant real (RLS, repos, aislamiento) viene en TASK-003+. Acá solo
+  habilitamos el primer-login para destrabar tests de auth end-to-end.

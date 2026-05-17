@@ -1,0 +1,103 @@
+id: TASK-001
+nombre: "Autenticación con Google OAuth + JWT"
+tipo: feature
+sprint: 1
+prioridad: alta
+
+contexto: |
+  Permitir que un usuario inicie sesión con su cuenta de Google y obtenga
+  tokens JWT (access + refresh) para llamar a la API.
+
+  Flujo Authorization Code (server-side):
+    1. Frontend abre `/api/auth/google/url` y obtiene la URL de Google.
+    2. Usuario autoriza en Google.
+    3. Google redirige a `/api/auth/google/callback?code=...&state=...`.
+    4. Backend intercambia code → id_token + access_token, verifica el id_token,
+       extrae `sub`, `email`, `name`.
+    5. Backend ejecuta `login_or_create_user` (TASK-002) para resolver Empresa+Usuario.
+    6. Backend setea cookie `mr_refresh` (HTTP-only, SameSite=Lax) y redirige al
+       frontend con el access_token en query string (efímero).
+    7. Frontend lo guarda en memoria (Zustand) y lo pasa como `Authorization: Bearer`.
+
+  Refresh: `POST /api/auth/refresh` lee cookie `mr_refresh` y devuelve un access
+  nuevo. Logout: `POST /api/auth/logout` borra la cookie.
+
+  Esta tarea cubre la infra de auth (JWT + verificación Google + dependencias
+  FastAPI). El primer-login que crea Empresa+Usuario está en TASK-002 (en este
+  mismo PR por acoplamiento real).
+
+comportamiento:
+  - "REQ-AUTH-001: GET /api/auth/google/url devuelve `{url}` con la URL de autorización de Google con state firmado."
+  - "REQ-AUTH-002: GET /api/auth/google/callback con code válido y state firmado redirige al frontend con access_token en query string."
+  - "REQ-AUTH-003: GET /api/auth/google/callback con state inválido devuelve 400 VALIDACION_INPUT."
+  - "REQ-AUTH-004: POST /api/auth/refresh con cookie mr_refresh válida devuelve nuevo access_token."
+  - "REQ-AUTH-005: POST /api/auth/refresh sin cookie devuelve 401 AUTH_REQUIRED."
+  - "REQ-AUTH-006: POST /api/auth/refresh con cookie expirada devuelve 401 AUTH_INVALID."
+  - "REQ-AUTH-007: POST /api/auth/logout con cookie limpia la cookie y devuelve 204."
+  - "REQ-AUTH-008: GET /api/auth/me con Bearer access_token válido devuelve `{usuario, empresa}` del request."
+  - "REQ-AUTH-009: GET /api/auth/me sin token devuelve 401 AUTH_REQUIRED."
+  - "REQ-AUTH-010: GET /api/auth/me con token expirado devuelve 401 AUTH_INVALID."
+  - "REQ-AUTH-011: Access tokens TTL = JWT_ACCESS_TTL_MIN minutos. Refresh tokens TTL = JWT_REFRESH_TTL_DAYS días."
+  - "REQ-AUTH-012: El claim del JWT incluye `sub` (usuario_id), `empresa_id`, `rol`, `type` (access|refresh), `exp`, `iat`."
+
+no_debe:
+  - "Aceptar tokens firmados con un secret distinto al de Settings."
+  - "Devolver detalles internos del error (stack trace, query, etc.) al cliente."
+  - "Loguear el access_token o refresh_token completos."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/infra/errors.py"
+  - "backend/src/megarepartos/infra/auth.py"
+  - "backend/src/megarepartos/schemas/__init__.py"
+  - "backend/src/megarepartos/schemas/auth.py"
+  - "backend/src/megarepartos/domain/__init__.py"
+  - "backend/src/megarepartos/domain/_events.py"
+  - "backend/src/megarepartos/domain/auth.py"
+  - "backend/src/megarepartos/api/auth.py"
+  - "behaviors/auth.md"
+  - "behaviors/empresa.md"
+  - "backend/tests/factories.py"
+  - "backend/tests/integration/conftest.py"
+  - "backend/tests/unit/test_jwt.py"
+  - "backend/tests/unit/test_auth_domain.py"
+  - "backend/tests/integration/test_auth_api.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/main.py"  # montar router + error handler
+  - "docs/DEVELOPMENT.md"               # cómo configurar OAuth en local
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"  # auth UI es TASK posterior
+
+tests:
+  - "test_REQ_AUTH_001_url_de_autorizacion_incluye_state_firmado"
+  - "test_REQ_AUTH_002_callback_con_code_valido_emite_access_token"
+  - "test_REQ_AUTH_003_callback_con_state_invalido_devuelve_400"
+  - "test_REQ_AUTH_004_refresh_con_cookie_valida_emite_nuevo_access"
+  - "test_REQ_AUTH_005_refresh_sin_cookie_devuelve_401"
+  - "test_REQ_AUTH_006_refresh_con_token_expirado_devuelve_401"
+  - "test_REQ_AUTH_007_logout_borra_cookie"
+  - "test_REQ_AUTH_008_me_con_token_valido_devuelve_usuario_y_empresa"
+  - "test_REQ_AUTH_009_me_sin_token_devuelve_401"
+  - "test_REQ_AUTH_010_me_con_token_expirado_devuelve_401"
+  - "test_REQ_AUTH_011_access_token_expira_segun_settings"
+  - "test_REQ_AUTH_012_jwt_claims_incluyen_sub_empresa_id_rol_type"
+
+aceptacion:
+  - "make test verde"
+  - "make lint verde"
+  - "make check-arquitectura verde (api/auth.py no importa de models/)"
+  - "make behavior-coverage verde (todos los REQ-AUTH tienen test)"
+  - "Curl manual a /api/auth/google/url devuelve un JSON con `url`"
+
+depende_de:
+  - "TASK-000"
+
+notas: |
+  El verificador de Google id_token se mockea en tests (no hacemos calls reales
+  a Google en CI). En desarrollo local hay que crear un OAuth client en
+  console.cloud.google.com y completar GOOGLE_OAUTH_CLIENT_ID / SECRET en `.env`.
+
+  TASK-002 se entrega en el mismo PR porque el flow de OAuth necesita Empresa
+  y Usuario para emitir el JWT (no hay forma natural de partirlo).
