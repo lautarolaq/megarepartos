@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Zona {
@@ -42,7 +43,15 @@ export function ZonasPage() {
       </div>
 
       {isLoading && <p className="mt-4 text-slate-500">Cargando…</p>}
-      {data && (
+      {data && data.items.length === 0 && (
+        <EmptyState
+          icon={<Truck size={20} />}
+          title="Sin zonas todavía"
+          body="Las zonas agrupan a tus clientes por barrio o día de visita. Te sirven para mandar campañas a un grupo y para imprimir hojas de ruta."
+          cta={<Button onClick={() => setOpenCreate(true)}>+ Crear primera zona</Button>}
+        />
+      )}
+      {data && data.items.length > 0 && (
         <table className="mt-6 w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
@@ -55,13 +64,6 @@ export function ZonasPage() {
             </tr>
           </thead>
           <tbody>
-            {data.items.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
-                  No hay zonas todavía.
-                </td>
-              </tr>
-            )}
             {data.items.map((z) => (
               <tr key={z.id} className="border-t border-slate-200">
                 <td className="px-4 py-2 font-medium">{z.nombre}</td>
