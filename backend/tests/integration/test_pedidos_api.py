@@ -117,6 +117,43 @@ async def test_stats_pedidos(
 
 
 @pytest.mark.integration
+@pytest.mark.req("REQ-PED-005")
+async def test_export_csv(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    empresa = await make_empresa(db_session)
+    admin = await make_usuario(db_session, empresa=empresa, rol="admin")
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    cliente = await make_cliente(db_session, empresa=empresa, nombre_completo="Juan Pérez")
+    await db_session.execute(text("SET LOCAL ROLE megarepartos_app"))
+
+    token = sign_link_token(settings, cliente_id=cliente.id)
+    await app_client.post(
+        f"/api/publico/c/{token}/respuesta",
+        json={"accion": "confirmo", "observacion": "Después de las 15hs"},
+    )
+
+    tok, _ = issue_access_token(
+        settings=settings, usuario_id=admin.id, empresa_id=empresa.id, rol="admin"
+    )
+    resp = await app_client.get(
+        "/api/pedidos/export.csv", headers={"Authorization": f"Bearer {tok}"}
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "attachment" in resp.headers["content-disposition"]
+
+    body = resp.text
+    assert body.splitlines()[0].startswith("Cliente,")
+    assert "Juan Pérez" in body
+    assert "Después de las 15hs" in body
+    assert "confirmo" in body
+
+
+@pytest.mark.integration
 @pytest.mark.req("REQ-PED-003")
 async def test_listar_pedidos_filtra_por_accion(
     app_client: AsyncClient,

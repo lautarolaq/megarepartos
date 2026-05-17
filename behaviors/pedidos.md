@@ -28,6 +28,12 @@ Defensa: RLS por `empresa_id` + filtro explícito en la query.
 `GET /api/pedidos/stats` (admin) devuelve `{pedidos_hoy, confirmados_hoy,
 pedidos_semana, clientes_activos}`. `pedidos_semana` es rolling 7 días.
 
+### REQ-PED-005
+`GET /api/pedidos/export.csv` (admin) descarga un CSV con columnas:
+Cliente, Teléfono, Acción, Productos (llenos), Envases vacíos a recibir,
+Observación, Fecha. Acepta los mismos filtros que el listado (`accion`,
+`desde_dias`). Default: `accion=confirmo&desde_dias=7`.
+
 ## No-requisitos
 
 - No es una tabla `pedido` con CRUD propio.
