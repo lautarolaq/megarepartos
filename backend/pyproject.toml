@@ -39,6 +39,7 @@ dev = [
     "testcontainers[postgres]>=4.5,<5.0",
     "ruff>=0.6,<1.0",
     "mypy>=1.10,<2.0",
+    "types-python-jose>=3.3,<4.0",  # stubs para mypy, no es librería runtime
 ]
 
 [tool.setuptools.packages.find]
@@ -81,6 +82,11 @@ warn_unreachable = true
 ignore_missing_imports = true
 disallow_untyped_defs = false
 explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# Librerías de terceros sin stubs oficiales.
+module = ["jose", "jose.*", "google.*", "googleapiclient.*", "mercadopago.*"]
+ignore_missing_imports = true
 
 # ---- pytest ----
 [tool.pytest.ini_options]

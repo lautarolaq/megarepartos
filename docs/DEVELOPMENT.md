@@ -72,6 +72,13 @@ Ver `.env.example`. Las críticas en local:
 
 - `DATABASE_URL` — connection string async. Default apunta al Postgres de Docker.
 - `JWT_SECRET` — cualquier string, se regenera en cada entorno.
+- `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` — necesarios para que el
+  flow de login real funcione. Tests pasan sin estos (mockean Google). Para
+  desarrollo end-to-end:
+  1. Ir a https://console.cloud.google.com/apis/credentials.
+  2. Crear OAuth 2.0 Client ID (Web application).
+  3. Authorized redirect URIs: `http://localhost:8000/api/auth/google/callback`.
+  4. Copiar Client ID + Secret a `.env`.
 
 En prod las completa Secret Manager.
 

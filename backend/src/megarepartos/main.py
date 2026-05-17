@@ -1,8 +1,4 @@
-"""FastAPI app entrypoint.
-
-En TASK-000 solo expone `/health`. Los routers de negocio (auth, empresa, clientes, etc.)
-se montan en TASKs posteriores.
-"""
+"""FastAPI app entrypoint."""
 
 from __future__ import annotations
 
@@ -10,13 +6,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos import __version__
+from megarepartos.api import auth as auth_router
 from megarepartos.config import get_settings
 from megarepartos.infra.db import engine, get_session
+from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.infra.logging import configure_logging, get_logger
 
 
@@ -43,6 +43,25 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+app.include_router(auth_router.router)
+
+
+@app.exception_handler(ApiError)
+async def _api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
+    """Mapea `ApiError` al body estándar `{error: {code, message, details}}`."""
+    return JSONResponse(status_code=exc.http_status, content=exc.to_body())
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Pydantic / FastAPI validation errors → 400 VALIDACION_INPUT."""
+    err = ApiError(
+        ErrorCode.VALIDACION_INPUT,
+        "Input inválido.",
+        details={"errors": exc.errors()},
+    )
+    return JSONResponse(status_code=err.http_status, content=err.to_body())
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
