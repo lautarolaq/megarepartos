@@ -10,6 +10,7 @@ mantenemos el filtro explícito por defensa en profundidad.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -19,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from megarepartos.infra.auth import TokenClaims, authenticated_session, current_claims
 from megarepartos.models.cliente import Cliente
 from megarepartos.models.evento import EventoDominio
-from megarepartos.schemas.pedido import PedidoListOut, PedidoOut, ProductoPedido
+from megarepartos.schemas.pedido import PedidoListOut, PedidoOut, PedidoStatsOut, ProductoPedido
 
 router = APIRouter(prefix="/api/pedidos", tags=["pedidos"])
 
@@ -99,3 +100,61 @@ async def listar(
         )
 
     return PedidoListOut(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/stats", response_model=PedidoStatsOut)
+async def stats(claims: ClaimsDep, session: SessionDep) -> PedidoStatsOut:
+    """Resumen del día/semana para el dashboard."""
+    now = datetime.now(UTC)
+    inicio_hoy = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # "Esta semana" = últimos 7 días rolling, evita líos con calendarios y husos.
+    inicio_semana = inicio_hoy - timedelta(days=6)
+
+    base_evento = select(EventoDominio).where(
+        EventoDominio.empresa_id == claims.empresa_id,
+        EventoDominio.entidad_tipo == "cliente",
+        EventoDominio.accion == "respondio_link",
+    )
+
+    pedidos_hoy = (
+        await session.execute(
+            select(func.count()).select_from(
+                base_evento.where(EventoDominio.fecha >= inicio_hoy).subquery()
+            )
+        )
+    ).scalar_one()
+
+    confirmados_hoy = (
+        await session.execute(
+            select(func.count()).select_from(
+                base_evento.where(
+                    EventoDominio.fecha >= inicio_hoy,
+                    EventoDominio.detalles_jsonb["accion"].astext == "confirmo",
+                ).subquery()
+            )
+        )
+    ).scalar_one()
+
+    pedidos_semana = (
+        await session.execute(
+            select(func.count()).select_from(
+                base_evento.where(EventoDominio.fecha >= inicio_semana).subquery()
+            )
+        )
+    ).scalar_one()
+
+    clientes_activos = (
+        await session.execute(
+            select(func.count(Cliente.id)).where(
+                Cliente.empresa_id == claims.empresa_id,
+                Cliente.activo.is_(True),
+            )
+        )
+    ).scalar_one()
+
+    return PedidoStatsOut(
+        pedidos_hoy=pedidos_hoy,
+        confirmados_hoy=confirmados_hoy,
+        pedidos_semana=pedidos_semana,
+        clientes_activos=clientes_activos,
+    )

@@ -81,6 +81,40 @@ async def test_listar_pedidos_sin_auth_401(app_client: AsyncClient, _override_se
 
 
 @pytest.mark.integration
+async def test_stats_pedidos(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    empresa = await make_empresa(db_session)
+    admin = await make_usuario(db_session, empresa=empresa, rol="admin")
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    cliente_a = await make_cliente(db_session, empresa=empresa, nombre_completo="A")
+    cliente_b = await make_cliente(db_session, empresa=empresa, nombre_completo="B")
+    await db_session.execute(text("SET LOCAL ROLE megarepartos_app"))
+
+    for c, accion in ((cliente_a, "confirmo"), (cliente_b, "rechazo")):
+        token = sign_link_token(settings, cliente_id=c.id)
+        await app_client.post(
+            f"/api/publico/c/{token}/respuesta", json={"accion": accion}
+        )
+
+    tok, _ = issue_access_token(
+        settings=settings, usuario_id=admin.id, empresa_id=empresa.id, rol="admin"
+    )
+    resp = await app_client.get(
+        "/api/pedidos/stats", headers={"Authorization": f"Bearer {tok}"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pedidos_hoy"] == 2
+    assert body["confirmados_hoy"] == 1
+    assert body["pedidos_semana"] == 2
+    assert body["clientes_activos"] == 2
+
+
+@pytest.mark.integration
 async def test_listar_pedidos_paginacion(
     app_client: AsyncClient,
     db_session: AsyncSession,
