@@ -66,6 +66,13 @@ como `evento_dominio` con `entidad_tipo="empresa"`, `accion="modificada"`.
 `GET /api/empresa/me` (cualquier rol autenticado) devuelve la empresa
 del JWT con campos públicos (sin `plan_id`, sin `config_jsonb`).
 
+### REQ-EMP-009
+
+`PATCH /api/empresa/me` acepta opcionalmente `mensaje_default_link` —
+plantilla del mensaje de WhatsApp para enviar el link al cliente.
+Soporta variables `{nombre}` y `{link}`. Persiste en `empresa.config_jsonb`
+(no es columna directa). Aparece en `EmpresaOut.mensaje_default_link`.
+
 ## No-requisitos
 
 - No soporta invitar usuarios a una empresa existente (TASK-012).

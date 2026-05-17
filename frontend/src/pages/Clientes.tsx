@@ -257,20 +257,30 @@ function CampanaModal({
   zonas: Zona[];
   onClose: () => void;
 }) {
+  const { data: empresa } = useQuery({
+    queryKey: ["empresa-me"],
+    queryFn: async (): Promise<{ mensaje_default_link: string | null }> =>
+      (await api.get("/api/empresa/me")).data,
+    enabled: open,
+  });
+
+  const mensajeBase =
+    empresa?.mensaje_default_link ??
+    "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}";
+
   const [zonaId, setZonaId] = useState(zonaIdInicial);
   const [items, setItems] = useState<LinkBulkItem[] | null>(null);
   const [enviados, setEnviados] = useState<Set<string>>(new Set());
-  const [mensaje, setMensaje] = useState(
-    "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}",
-  );
+  const [mensaje, setMensaje] = useState(mensajeBase);
 
   useEffect(() => {
     if (open) {
       setZonaId(zonaIdInicial);
       setItems(null);
       setEnviados(new Set());
+      setMensaje(mensajeBase);
     }
-  }, [open, zonaIdInicial]);
+  }, [open, zonaIdInicial, mensajeBase]);
 
   const generar = useMutation({
     mutationFn: async () => {
@@ -595,9 +605,19 @@ function EnviarLinkModal({
   data: LinkGenerado | null;
   onClose: () => void;
 }) {
+  const { data: empresa } = useQuery({
+    queryKey: ["empresa-me"],
+    queryFn: async (): Promise<{ mensaje_default_link: string | null }> =>
+      (await api.get("/api/empresa/me")).data,
+    enabled: !!data,
+  });
+
   const primerNombre = data?.cliente.nombre_completo.split(" ")[0] ?? "";
+  const plantilla =
+    empresa?.mensaje_default_link ??
+    "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}";
   const mensajeDefault = data
-    ? `Hola ${primerNombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n${data.url}`
+    ? plantilla.replace(/\{nombre\}/g, primerNombre).replace(/\{link\}/g, data.url)
     : "";
   const [mensaje, setMensaje] = useState(mensajeDefault);
   const [copiado, setCopiado] = useState<"link" | "mensaje" | null>(null);

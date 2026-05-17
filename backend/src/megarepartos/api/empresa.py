@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from megarepartos.domain.empresa import actualizar_empresa, obtener_empresa
+from megarepartos.domain.empresa import CONFIG_KEYS, actualizar_empresa, obtener_empresa
 from megarepartos.infra.auth import (
     TokenClaims,
     authenticated_session,
@@ -23,11 +23,27 @@ ClaimsDep = Annotated[TokenClaims, Depends(current_claims)]
 AdminDep = Annotated[TokenClaims, Depends(require_rol("admin"))]
 
 
+def _to_out(empresa: object) -> EmpresaOut:
+    """Construye EmpresaOut combinando columnas + config_jsonb."""
+    config = getattr(empresa, "config_jsonb", None) or {}
+    data = {
+        "id": empresa.id,  # type: ignore[attr-defined]
+        "nombre": empresa.nombre,  # type: ignore[attr-defined]
+        "tipo_negocio": empresa.tipo_negocio,  # type: ignore[attr-defined]
+        "estado_suscripcion": empresa.estado_suscripcion,  # type: ignore[attr-defined]
+        "direccion_deposito": empresa.direccion_deposito,  # type: ignore[attr-defined]
+        "timezone": empresa.timezone,  # type: ignore[attr-defined]
+    }
+    for key in CONFIG_KEYS:
+        data[key] = config.get(key)
+    return EmpresaOut(**data)
+
+
 @router.get("/me", response_model=EmpresaOut)
 async def me(claims: ClaimsDep, session: SessionDep) -> EmpresaOut:
     """REQ-EMP-008: devuelve la empresa del usuario autenticado."""
     empresa = await obtener_empresa(session, empresa_id=claims.empresa_id)
-    return EmpresaOut.model_validate(empresa)
+    return _to_out(empresa)
 
 
 @router.patch("/me", response_model=EmpresaOut)
@@ -36,7 +52,7 @@ async def actualizar_me(
     admin_claims: AdminDep,
     session: SessionDep,
 ) -> EmpresaOut:
-    """REQ-EMP-007: admin actualiza datos de su empresa."""
+    """REQ-EMP-007/009: admin actualiza datos de su empresa."""
     cambios = payload.model_dump(exclude_unset=True)
     empresa = await actualizar_empresa(
         session,
@@ -44,4 +60,4 @@ async def actualizar_me(
         usuario_id=admin_claims.sub,
         cambios=cambios,
     )
-    return EmpresaOut.model_validate(empresa)
+    return _to_out(empresa)
