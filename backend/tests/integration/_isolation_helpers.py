@@ -28,6 +28,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.config import Settings
@@ -185,8 +186,16 @@ async def assert_endpoint_isolated_mutation_404(
         f"{method_upper} {url} desde empresa ajena debería ser 404, fue {resp.status_code}: {resp.text}"
     )
 
-    # Verificar que el item de B sigue presente (no se borró ni mutó).
-    # Lo hacemos refrescando desde la DB.
-    await db_session.refresh(item_de_b)
-    # Si era DELETE, el item debería seguir vivo:
-    assert item_de_b is not None
+    # Verificar que el item de B sigue presente (no se borró ni mutó). El
+    # `session.refresh` del ORM no sirve porque corre con contexto A — RLS
+    # ocultaría el row. Vamos con SQL crudo y rol superuser temporal.
+    table_name = item_de_b.__tablename__  # type: ignore[attr-defined]
+    await db_session.execute(text("RESET ROLE"))
+    row = (
+        await db_session.execute(
+            text(f"SELECT 1 FROM {table_name} WHERE id = :id"),
+            {"id": item_de_b.id},  # type: ignore[attr-defined]
+        )
+    ).scalar_one_or_none()
+    await db_session.execute(text("SET LOCAL ROLE megarepartos_app"))
+    assert row is not None, f"El item de empresa B desapareció tras {method_upper}"
