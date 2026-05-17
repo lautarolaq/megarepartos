@@ -1,0 +1,62 @@
+id: TASK-FE-001
+nombre: "Frontend base: auth flow + dashboard + CRUDs visibles"
+tipo: feature
+sprint: 2
+prioridad: alta
+
+contexto: |
+  Hasta TASK-013 todo era backend. Esta tarea agrega el frontend mínimo
+  para que la app sea navegable como producto:
+
+    - Botón "Login con Google" → flujo OAuth → callback extrae token.
+    - Dashboard con menú lateral (Productos, Envases, Zonas, Clientes, Usuarios).
+    - Listado funcional de Productos y Clientes (con búsqueda).
+    - Crear/editar/borrar productos y clientes vía modales.
+    - Logout.
+
+  Stack: React 18 + Vite + TanStack Query + Zustand + Tailwind + Headless UI.
+
+comportamiento:
+  - "REQ-FE-001: GET / muestra Login si no hay token; sino redirige a /dashboard."
+  - "REQ-FE-002: GET /auth/callback extrae access_token del hash, lo guarda en Zustand y redirige a /dashboard."
+  - "REQ-FE-003: Todas las requests a /api/* incluyen Authorization: Bearer <access_token>."
+  - "REQ-FE-004: Si una request devuelve 401 AUTH_INVALID, frontend intenta refresh; si refresh falla, redirige a /login."
+  - "REQ-FE-005: /dashboard/productos lista productos paginados, con botón 'Nuevo' que abre modal de creación."
+  - "REQ-FE-006: /dashboard/clientes lista clientes con búsqueda por q= (debounced)."
+  - "REQ-FE-007: Click en 'Cerrar sesión' llama a POST /api/auth/logout y limpia el estado local."
+
+no_debe:
+  - "Guardar access_token en localStorage (queda solo en memoria — Zustand)."
+  - "Usar fetch crudo — todo va por axios via lib/api.ts."
+  - "Usar useEffect + fetch — todo via TanStack Query (regla CLAUDE.md FE #1)."
+
+archivos_nuevos:
+  - "frontend/src/lib/api.ts"
+  - "frontend/src/lib/auth.ts"
+  - "frontend/src/stores/auth-store.ts"
+  - "frontend/src/components/ui/Button.tsx"
+  - "frontend/src/components/ui/Input.tsx"
+  - "frontend/src/components/ui/Modal.tsx"
+  - "frontend/src/pages/Login.tsx"
+  - "frontend/src/pages/AuthCallback.tsx"
+  - "frontend/src/pages/Dashboard.tsx"
+  - "frontend/src/pages/Productos.tsx"
+  - "frontend/src/pages/Clientes.tsx"
+  - "behaviors/frontend.md"
+
+archivos_a_modificar:
+  - "frontend/src/main.tsx"  # QueryClient + Router providers
+  - "frontend/src/App.tsx"   # Routes
+  - "frontend/.env.example"  # VITE_API_BASE_URL
+
+depende_de:
+  - "TASK-001"
+  - "TASK-008"
+  - "TASK-011"
+
+notas: |
+  No usamos React Hook Form en este TASK (modales simples con useState).
+  Se incorporará cuando los formularios crezcan (clientes con muchos campos).
+
+  No hay protected routes guard real — solo redirección si no hay token en
+  Zustand. Más adelante se mejora con un componente <RequireAuth>.
