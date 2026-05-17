@@ -1,0 +1,61 @@
+id: TASK-010
+nombre: "CRUD zonas"
+tipo: feature
+sprint: 2
+prioridad: alta
+
+contexto: |
+  Zonas son agrupaciones geográficas de clientes con día de visita asignado
+  (ej. "Nueva Córdoba" — jueves — camioneta "Verde"). El sodero usa zonas para
+  filtrar campañas ("clientes del jueves") y para asignar reparto.
+
+  Mismo patrón que envases y productos. Admin gestiona, operador lee.
+
+comportamiento:
+  - "REQ-ZONA-001: GET /api/zonas devuelve todas las zonas de la empresa ordenadas por nombre."
+  - "REQ-ZONA-002: GET /api/zonas?activo=true filtra por activo."
+  - "REQ-ZONA-003: GET /api/zonas/{id} ajeno devuelve 404."
+  - "REQ-ZONA-004: POST /api/zonas crea (admin)."
+  - "REQ-ZONA-005: PATCH /api/zonas/{id} actualiza."
+  - "REQ-ZONA-006: DELETE /api/zonas/{id} soft delete idempotente."
+  - "REQ-ZONA-007: dia_visita debe ser uno de: lunes..domingo (o null), sino 400."
+  - "REQ-ZONA-008: Cada POST/PATCH/DELETE audita."
+
+no_debe:
+  - "Permitir hard delete."
+  - "Aceptar dia_visita fuera del enum válido."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/schemas/zona.py"
+  - "backend/src/megarepartos/domain/zonas.py"
+  - "backend/src/megarepartos/api/zonas.py"
+  - "behaviors/zonas.md"
+  - "backend/tests/integration/test_zonas_api.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/main.py"
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"
+
+tests:
+  - "test_REQ_ZONA_001_listado_ordenado"
+  - "test_REQ_ZONA_003_detalle_ajeno_404"
+  - "test_REQ_ZONA_004_post_admin_crea"
+  - "test_REQ_ZONA_005_patch_solo_provided"
+  - "test_REQ_ZONA_006_delete_soft_idempotente"
+  - "test_REQ_ZONA_007_dia_visita_invalido_400"
+  - "test_REQ_ZONA_008_eventos_generados"
+
+aceptacion:
+  - "make test verde"
+
+depende_de:
+  - "TASK-008"
+
+notas: |
+  Sección 5 del SPEC: zona tiene id, empresa_id, nombre, dia_visita,
+  camioneta_asignada, color_display, activo.
+
+  Sugerencia de particionamiento automático (sección 6.2) es TASK posterior.

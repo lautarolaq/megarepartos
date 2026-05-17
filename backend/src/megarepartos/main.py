@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos import __version__
 from megarepartos.api import auth as auth_router
+from megarepartos.api import envases as envases_router
 from megarepartos.api import productos as productos_router
+from megarepartos.api import zonas as zonas_router
 from megarepartos.config import get_settings
 from megarepartos.infra.audit_context import AuditContextMiddleware
 from megarepartos.infra.db import engine, get_session
@@ -52,6 +54,8 @@ app.add_middleware(AuditContextMiddleware)
 
 app.include_router(auth_router.router)
 app.include_router(productos_router.router)
+app.include_router(envases_router.router)
+app.include_router(zonas_router.router)
 
 
 @app.exception_handler(ApiError)
