@@ -64,7 +64,9 @@ async def google_auth_url(settings: SettingsDep) -> GoogleAuthUrl:
         "scope": " ".join(GOOGLE_DEFAULT_SCOPES),
         "state": state,
         "access_type": "offline",
-        "prompt": "consent",
+        # No `prompt=consent`: Google decide (consent solo la primera vez).
+        # `select_account` permite cambiar de cuenta sin re-consentir.
+        "prompt": "select_account",
     }
     return GoogleAuthUrl(url=f"{GOOGLE_AUTH_URL}?{urllib.parse.urlencode(params)}")
 
