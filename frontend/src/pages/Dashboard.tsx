@@ -9,13 +9,16 @@ import {
   Clock,
   Inbox,
   LogOut,
+  Menu,
   Package,
   Truck,
   User,
   Users,
   Warehouse,
+  X as XIcon,
 } from "lucide-react";
-import { Link, NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 interface MeResponse {
   usuario: { id: string; email: string; nombre: string; rol: string };
@@ -26,6 +29,14 @@ export function DashboardLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const clear = useAuthStore((s) => s.clear);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Cerrar el drawer al navegar (en mobile).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: el efecto debe dispararse cuando cambia la ruta.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   const { data: me, isLoading } = useQuery({
     queryKey: ["me"],
@@ -48,56 +59,105 @@ export function DashboardLayout() {
     navigate("/login", { replace: true });
   }
 
-  return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-800">
-      <aside className="w-64 border-r border-slate-200 bg-white p-4">
+  const sidebar = (
+    <>
+      <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">Megarepartos</h1>
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden -mr-2 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+          aria-label="Cerrar menú"
+        >
+          <XIcon size={20} />
+        </button>
+      </div>
+      {me && (
+        <p className="mt-1 truncate text-xs text-slate-500" title={me.empresa.nombre}>
+          {me.empresa.nombre}
+        </p>
+      )}
+      <nav className="mt-6 flex flex-col gap-1">
+        <NavItem to="/dashboard/pedidos" icon={<Inbox size={16} />}>
+          Pedidos
+        </NavItem>
+        <NavItem to="/dashboard/pendientes" icon={<Clock size={16} />}>
+          Pendientes
+        </NavItem>
+        <NavItem to="/dashboard/productos" icon={<Package size={16} />}>
+          Productos
+        </NavItem>
+        <NavItem to="/dashboard/envases" icon={<Warehouse size={16} />}>
+          Envases
+        </NavItem>
+        <NavItem to="/dashboard/zonas" icon={<Truck size={16} />}>
+          Zonas
+        </NavItem>
+        <NavItem to="/dashboard/clientes" icon={<Users size={16} />}>
+          Clientes
+        </NavItem>
+        <NavItem to="/dashboard/usuarios" icon={<User size={16} />}>
+          Usuarios
+        </NavItem>
+        <NavItem to="/dashboard/empresa" icon={<Building2 size={16} />}>
+          Empresa
+        </NavItem>
+      </nav>
+      <div className="mt-8 border-t border-slate-200 pt-4">
         {me && (
-          <p className="mt-1 truncate text-xs text-slate-500" title={me.empresa.nombre}>
-            {me.empresa.nombre}
+          <p className="mb-2 text-xs text-slate-500">
+            {me.usuario.nombre}
+            <br />
+            <span className="text-slate-400">{me.usuario.rol}</span>
           </p>
         )}
-        <nav className="mt-6 flex flex-col gap-1">
-          <NavItem to="/dashboard/pedidos" icon={<Inbox size={16} />}>
-            Pedidos
-          </NavItem>
-          <NavItem to="/dashboard/pendientes" icon={<Clock size={16} />}>
-            Pendientes
-          </NavItem>
-          <NavItem to="/dashboard/productos" icon={<Package size={16} />}>
-            Productos
-          </NavItem>
-          <NavItem to="/dashboard/envases" icon={<Warehouse size={16} />}>
-            Envases
-          </NavItem>
-          <NavItem to="/dashboard/zonas" icon={<Truck size={16} />}>
-            Zonas
-          </NavItem>
-          <NavItem to="/dashboard/clientes" icon={<Users size={16} />}>
-            Clientes
-          </NavItem>
-          <NavItem to="/dashboard/usuarios" icon={<User size={16} />}>
-            Usuarios
-          </NavItem>
-          <NavItem to="/dashboard/empresa" icon={<Building2 size={16} />}>
-            Empresa
-          </NavItem>
-        </nav>
-        <div className="mt-8 border-t border-slate-200 pt-4">
-          {me && (
-            <p className="mb-2 text-xs text-slate-500">
-              {me.usuario.nombre}
-              <br />
-              <span className="text-slate-400">{me.usuario.rol}</span>
-            </p>
-          )}
-          <Button variant="ghost" onClick={handleLogout} className="w-full">
-            <LogOut size={14} />
-            Cerrar sesión
-          </Button>
-        </div>
+        <Button variant="ghost" onClick={handleLogout} className="w-full">
+          <LogOut size={14} />
+          Cerrar sesión
+        </Button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 lg:flex">
+      {/* Header mobile con hamburger */}
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="-ml-2 inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100"
+          aria-label="Abrir menú"
+        >
+          <Menu size={22} />
+        </button>
+        <h1 className="text-lg font-semibold tracking-tight">Megarepartos</h1>
+        <div className="w-10" />
+      </header>
+
+      {/* Sidebar desktop */}
+      <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-4 lg:block">
+        {sidebar}
       </aside>
-      <main className="flex-1 overflow-auto p-8">
+
+      {/* Drawer mobile */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r border-slate-200 bg-white p-4 shadow-xl transition-transform lg:hidden ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {sidebar}
+      </aside>
+
+      <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
         {isLoading ? <p className="text-slate-500">Cargando…</p> : <Outlet />}
       </main>
     </div>

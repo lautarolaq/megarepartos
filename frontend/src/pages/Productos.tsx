@@ -49,63 +49,65 @@ export function ProductosPage() {
         />
       )}
       {data && data.items.length > 0 && (
-        <table className="mt-6 w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-2">Nombre</th>
-              <th className="px-4 py-2">Precio</th>
-              <th className="px-4 py-2">Retornable</th>
-              <th className="px-4 py-2">Estado</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((p) => (
-              <tr key={p.id} className="border-t border-slate-200">
-                <td className="px-4 py-2 font-medium">{p.nombre}</td>
-                <td className="px-4 py-2">
-                  {p.precio_unitario_default ? `$ ${p.precio_unitario_default}` : "—"}
-                </td>
-                <td className="px-4 py-2">{p.es_retornable ? "Sí" : "No"}</td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      p.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {p.activo ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {p.activo && (
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        className="text-slate-600 hover:text-slate-800"
-                        title="Editar"
-                        onClick={() => setProductoEditar(p)}
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="text-rose-600 hover:text-rose-800"
-                        title="Desactivar"
-                        onClick={() => {
-                          if (confirm(`¿Desactivar "${p.nombre}"?`)) {
-                            desactivarMut.mutate(p.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  )}
-                </td>
+        <div className="mt-6 -mx-4 sm:mx-0 overflow-x-auto">
+          <table className="w-full min-w-[640px] sm:min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white text-sm sm:rounded-md">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-2">Nombre</th>
+                <th className="px-4 py-2">Precio</th>
+                <th className="px-4 py-2">Retornable</th>
+                <th className="px-4 py-2">Estado</th>
+                <th className="px-4 py-2" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((p) => (
+                <tr key={p.id} className="border-t border-slate-200">
+                  <td className="px-4 py-2 font-medium">{p.nombre}</td>
+                  <td className="px-4 py-2">
+                    {p.precio_unitario_default ? `$ ${p.precio_unitario_default}` : "—"}
+                  </td>
+                  <td className="px-4 py-2">{p.es_retornable ? "Sí" : "No"}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        p.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {p.activo ? "Activo" : "Inactivo"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {p.activo && (
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          className="text-slate-600 hover:text-slate-800"
+                          title="Editar"
+                          onClick={() => setProductoEditar(p)}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="text-rose-600 hover:text-rose-800"
+                          title="Desactivar"
+                          onClick={() => {
+                            if (confirm(`¿Desactivar "${p.nombre}"?`)) {
+                              desactivarMut.mutate(p.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <CrearProductoModal open={openCreate} onClose={() => setOpenCreate(false)} />
