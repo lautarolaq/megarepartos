@@ -45,6 +45,17 @@ make lint
 
 Ver `docs/DEVELOPMENT.md` para detalle.
 
+### Git hook pre-push (recomendado)
+
+Activá una sola vez para que se corran los checks de CI localmente antes
+de cada push. Evita gastar minutos de GitHub Actions con commits rotos:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Skip puntual: `git push --no-verify`.
+
 ## Documentación
 
 - `docs/MEGAREPARTOS_SPEC.md` — especificación completa (producto, filosofía, operación).
