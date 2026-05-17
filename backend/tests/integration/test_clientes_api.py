@@ -242,12 +242,25 @@ async def test_listado_clientes_aislamiento_isolation(
 @pytest.mark.integration
 @pytest.mark.req("REQ-CLI-007")
 @pytest.mark.req("REQ-CLI-010")
-async def test_REQ_CLI_007_010_post_crea_y_normaliza_telefono(
+@pytest.mark.req("REQ-GEO-004")
+async def test_REQ_CLI_007_010_GEO_004_post_crea_normaliza_y_geocodea(
     app_client: AsyncClient,
     db_session: AsyncSession,
     settings: Settings,
     _override_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sqlalchemy import select
+
+    from megarepartos.infra import geocoding
+    from megarepartos.models.cliente import Cliente
+
+    # Mock geocoding para devolver coordenadas fijas (REQ-GEO-004).
+    async def _fake_geocode(_dir: str) -> tuple[float, float] | None:
+        return (-31.42, -64.18)
+
+    monkeypatch.setattr(geocoding, "geocodear", _fake_geocode)
+
     empresa, admin = await _seed_admin(db_session)
     resp = await app_client.post(
         "/api/clientes",
@@ -257,6 +270,7 @@ async def test_REQ_CLI_007_010_post_crea_y_normaliza_telefono(
         json={
             "nombre_completo": "Juan García",
             "telefono": "0351 555 1234",  # con formato local
+            "direccion": "Av. Colón 123, Córdoba",
             "modalidad": "fijo",
         },
     )
@@ -265,6 +279,13 @@ async def test_REQ_CLI_007_010_post_crea_y_normaliza_telefono(
     assert body["nombre_completo"] == "Juan García"
     assert body["telefono"] == "+543515551234"
     assert body["modalidad"] == "fijo"
+
+    # REQ-GEO-004: coordenadas se persistieron.
+    en_db = (
+        await db_session.execute(select(Cliente).where(Cliente.id == uuid.UUID(body["id"])))
+    ).scalar_one()
+    assert float(en_db.coordenadas_lat) == -31.42
+    assert float(en_db.coordenadas_lng) == -64.18
 
 
 # ---- REQ-CLI-008 ----

@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_url: str = "http://localhost:8000/api/auth/google/callback"
 
+    # ---- Google Maps (TASK-013) ----
+    # Si está vacía, `infra/geocoding.py` devuelve None y no llama a Google.
+    google_maps_api_key: str | None = None
+
     @property
     def effective_database_url(self) -> str:
         """URL efectiva: Neon en prod si está, default si no."""

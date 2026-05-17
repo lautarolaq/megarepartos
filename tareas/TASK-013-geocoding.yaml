@@ -1,0 +1,49 @@
+id: TASK-013
+nombre: "Geocoding de direcciones via Google Maps"
+tipo: feature
+sprint: 2
+prioridad: media
+
+contexto: |
+  Convierte `cliente.direccion` (string) en `cliente.coordenadas_lat/lng` usando
+  Google Maps Geocoding API. Útil para visualización en mapa (TASK posterior)
+  y para optimización de ruta (post-MVP).
+
+  Implementación:
+    - `infra/geocoding.py`: cliente HTTP que llama a Google Maps Geocoding API
+      con `GOOGLE_MAPS_API_KEY` de settings. Si no hay key, devuelve None y
+      logguea warning (modo "deshabilitado" para dev local sin billing).
+    - `domain/clientes.py`: hook opcional que geocodea al crear/actualizar
+      clientes con `direccion`.
+
+  Geocoding es **best-effort**: si falla, el cliente se crea sin coordenadas
+  (no falla la request).
+
+comportamiento:
+  - "REQ-GEO-001: `infra.geocoding.geocodear(direccion)` devuelve `(lat, lng)` o `None` si no se pudo."
+  - "REQ-GEO-002: Si `GOOGLE_MAPS_API_KEY` no está configurada, devuelve `None` sin levantar excepción."
+  - "REQ-GEO-003: Si Google Maps responde error o sin resultados, devuelve `None` y loggea WARNING."
+  - "REQ-GEO-004: POST/PATCH cliente con `direccion` nueva intenta geocodear y guarda coordenadas si Google responde."
+  - "REQ-GEO-005: Geocoding NUNCA hace fallar la request del cliente (fail-soft)."
+
+no_debe:
+  - "Hacer cliente fail si geocoding falla."
+  - "Persistir errores de Google en evento_dominio (solo log)."
+  - "Llamar a Google si la API key no está configurada."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/infra/geocoding.py"
+  - "behaviors/geocoding.md"
+  - "backend/tests/unit/test_geocoding.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/config.py"  # GOOGLE_MAPS_API_KEY setting
+  - "backend/src/megarepartos/domain/clientes.py"  # hook opcional
+  - ".env.example"
+
+depende_de:
+  - "TASK-011"
+
+notas: |
+  En tests, mockeamos httpx para no llamar a Google. En CI corren sin API key
+  (REQ-GEO-002 garantiza que no se rompe).
