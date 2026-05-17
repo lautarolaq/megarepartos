@@ -1,7 +1,18 @@
-# Megarepartos backend — imagen de producción.
-# Multi-stage build para deploy a Cloud Run.
+# Megarepartos — single-container build para Cloud Run.
+# El backend FastAPI sirve también el bundle estático del frontend.
 
-FROM python:3.12-slim AS builder
+# 1) Frontend build
+FROM node:20-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install --no-audit --no-fund
+COPY frontend/ ./
+# En prod, las requests a /api/* van al mismo origin que sirve el HTML.
+ENV VITE_API_BASE_URL=
+RUN npm run build
+
+# 2) Backend deps
+FROM python:3.12-slim AS backend-builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -22,12 +33,15 @@ RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install /app/backend
 
 
+# 3) Runtime: backend + frontend static
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
-    APP_ENV=production
+    APP_ENV=production \
+    SERVE_FRONTEND=1 \
+    FRONTEND_DIST=/app/frontend/dist
 
 WORKDIR /app
 
@@ -36,8 +50,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 1000 app
 
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=backend-builder /opt/venv /opt/venv
 COPY --chown=app:app backend /app/backend
+COPY --from=frontend-builder --chown=app:app /app/frontend/dist /app/frontend/dist
 
 USER app
 

@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
+import { getExtensionVersion, isExtensionInstalled, sendViaExtension } from "@/lib/extension";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Package, Pencil, RotateCcw, Send, Trash2 } from "lucide-react";
+import { Link2, Package, Pencil, RotateCcw, Send, Trash2, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -312,6 +313,9 @@ function CampanaModal({
   const [zonaId, setZonaId] = useState(zonaIdInicial);
   const [items, setItems] = useState<LinkBulkItem[] | null>(null);
   const [enviados, setEnviados] = useState<Set<string>>(new Set());
+  const [erroresAuto, setErroresAuto] = useState<Map<string, string>>(new Map());
+  const [autoEnEjecucion, setAutoEnEjecucion] = useState(false);
+  const [extensionDisponible, setExtensionDisponible] = useState(false);
   const [mensaje, setMensaje] = useState(mensajeBase);
 
   useEffect(() => {
@@ -319,7 +323,10 @@ function CampanaModal({
       setZonaId(zonaIdInicial);
       setItems(null);
       setEnviados(new Set());
+      setErroresAuto(new Map());
+      setAutoEnEjecucion(false);
       setMensaje(mensajeBase);
+      setExtensionDisponible(isExtensionInstalled());
     }
   }, [open, zonaIdInicial, mensajeBase]);
 
@@ -355,6 +362,32 @@ function CampanaModal({
       next.add(id);
       return next;
     });
+  }
+
+  async function enviarTodoAutomatico() {
+    if (!items || autoEnEjecucion) return;
+    setAutoEnEjecucion(true);
+    setErroresAuto(new Map());
+    for (const it of items) {
+      if (enviados.has(it.cliente_id)) continue;
+      const resp = await sendViaExtension(it.telefono, mensajeFor(it));
+      if (resp.ok) {
+        setEnviados((prev) => {
+          const next = new Set(prev);
+          next.add(it.cliente_id);
+          return next;
+        });
+      } else {
+        setErroresAuto((prev) => {
+          const next = new Map(prev);
+          next.set(it.cliente_id, resp.error ?? "Error desconocido");
+          return next;
+        });
+      }
+      // Delay anti-detección entre clientes (la extensión también tiene su delay interno).
+      await new Promise((r) => setTimeout(r, 1500 + Math.random() * 2000));
+    }
+    setAutoEnEjecucion(false);
   }
 
   return (
@@ -405,8 +438,33 @@ function CampanaModal({
               Tocá <strong>Enviar</strong> para abrir WhatsApp con el chat y el mensaje listo. Marcá
               los que ya enviaste para no perderte ninguno.
             </p>
+
+            {extensionDisponible && items.length > 0 && (
+              <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-sky-900">
+                    <strong>Extensión Megarepartos detectada</strong>{" "}
+                    <span className="text-xs text-sky-700">(v{getExtensionVersion()})</span>
+                    <p className="text-xs text-sky-700">
+                      Podés enviar todos automáticamente desde tu WhatsApp Web.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={enviarTodoAutomatico}
+                    disabled={autoEnEjecucion || enviados.size === items.length}
+                  >
+                    <Zap size={14} />
+                    {autoEnEjecucion ? "Enviando…" : "Enviar todos auto"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-slate-500">
               {enviados.size} / {items.length} enviados
+              {erroresAuto.size > 0 && (
+                <span className="ml-2 text-rose-600">· {erroresAuto.size} con error</span>
+              )}
             </p>
 
             {items.length === 0 && (
@@ -418,28 +476,36 @@ function CampanaModal({
             <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
               {items.map((it) => {
                 const enviado = enviados.has(it.cliente_id);
+                const errorMsg = erroresAuto.get(it.cliente_id);
                 return (
                   <li
                     key={it.cliente_id}
-                    className={`flex items-center justify-between gap-2 rounded-md border px-3 py-2 ${
-                      enviado ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+                    className={`rounded-md border px-3 py-2 ${
+                      enviado
+                        ? "border-emerald-200 bg-emerald-50"
+                        : errorMsg
+                          ? "border-rose-200 bg-rose-50"
+                          : "border-slate-200 bg-white"
                     }`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-700">
-                        {it.nombre_completo}
-                      </p>
-                      <p className="text-xs text-slate-500">{it.telefono}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-700">
+                          {it.nombre_completo}
+                        </p>
+                        <p className="text-xs text-slate-500">{it.telefono}</p>
+                      </div>
+                      <a
+                        href={waUrl(it)}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => marcarEnviado(it.cliente_id)}
+                        className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                      >
+                        {enviado ? "✓ Enviado" : "Enviar"}
+                      </a>
                     </div>
-                    <a
-                      href={waUrl(it)}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => marcarEnviado(it.cliente_id)}
-                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-                    >
-                      {enviado ? "✓ Enviado" : "Enviar"}
-                    </a>
+                    {errorMsg && <p className="mt-1 text-xs text-rose-700">{errorMsg}</p>}
                   </li>
                 );
               })}

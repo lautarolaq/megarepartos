@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Megarepartos",
+  "short_name": "Megarepartos",
+  "version": "0.1.0",
+  "description": "Envía links a tus clientes desde WhatsApp Web sin tocar enviar 50 veces.",
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Megarepartos",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["tabs", "storage", "scripting"],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "http://localhost:5173/*",
+    "https://*.trycloudflare.com/*",
+    "https://megarepartos.com.ar/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["wa-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://localhost:5173/*",
+        "https://*.trycloudflare.com/*",
+        "https://megarepartos.com.ar/*"
+      ],
+      "js": ["app-content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

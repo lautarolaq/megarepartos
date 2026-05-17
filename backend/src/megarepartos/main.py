@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -123,3 +126,26 @@ async def health(session: SessionDep) -> dict[str, str]:
         db_status = "error"
 
     return {"status": "ok", "db": db_status}
+
+
+# ---- Servir el frontend estático (Cloud Run single-container) ----
+# En prod, el Dockerfile copia el build de Vite a `/app/frontend/dist` y setea
+# SERVE_FRONTEND=1. Acá lo montamos como static + fallback al index.html para
+# que las rutas del SPA (/dashboard/*, /c/:token) funcionen.
+_serve_frontend = os.getenv("SERVE_FRONTEND") == "1"
+if _serve_frontend:
+    _dist_path = Path(os.getenv("FRONTEND_DIST", "/app/frontend/dist"))
+    if _dist_path.is_dir():
+        _assets = _dist_path / "assets"
+        if _assets.is_dir():
+            app.mount("/assets", StaticFiles(directory=str(_assets)), name="assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str) -> FileResponse:
+            # Si el path apunta a un archivo real en dist (ej. favicon.ico,
+            # robots.txt), servirlo. Sino, devolver index.html para que el
+            # SPA router del front lo maneje.
+            candidate = _dist_path / full_path
+            if candidate.is_file() and not full_path.startswith("api"):
+                return FileResponse(str(candidate))
+            return FileResponse(str(_dist_path / "index.html"))
