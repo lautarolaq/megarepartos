@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Download, MessageSquare, Printer, Search, Send, X } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Check, Download, Link2, MessageSquare, Printer, Search, Send, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -221,6 +222,25 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
   const telDigits = pedido.cliente_telefono.replace(/\D/g, "");
   const waUrl = `https://wa.me/${telDigits}`;
 
+  const reenviar = useMutation({
+    mutationFn: async () => {
+      const resp = await api.post<{ url: string }>(
+        `/api/clientes/${pedido.cliente_id}/generar-link`,
+      );
+      return resp.data.url;
+    },
+    onSuccess: (url) => {
+      const primer = pedido.cliente_nombre.split(" ")[0];
+      const msg = `Hola ${primer}! Volvemos a pasar pronto. Confirmá tu pedido en este link:\n\n${url}`;
+      const w = window.open(
+        `https://wa.me/${telDigits}?text=${encodeURIComponent(msg)}`,
+        "_blank",
+        "noopener",
+      );
+      if (!w) navigator.clipboard?.writeText(url);
+    },
+  });
+
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <header className="flex items-start justify-between gap-2">
@@ -280,7 +300,16 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
         </p>
       )}
 
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => reenviar.mutate()}
+          disabled={reenviar.isPending}
+          className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-800 disabled:opacity-50"
+        >
+          <Link2 size={12} />
+          {reenviar.isPending ? "Generando…" : "Enviar link nuevo"}
+        </button>
         <a
           href={waUrl}
           target="_blank"
