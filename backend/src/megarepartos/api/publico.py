@@ -63,6 +63,8 @@ async def info_link(
             nombre_completo=data.cliente_nombre_completo,
             telefono=data.cliente_telefono,
         ),
+        zona_nombre=data.zona_nombre,
+        zona_dia_visita=data.zona_dia_visita,
         productos_habituales=[
             ProductoHabitualPublico(
                 producto_id=h.producto_id,

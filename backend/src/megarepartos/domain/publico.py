@@ -23,6 +23,7 @@ from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.models.cliente import Cliente, ProductoHabitual
 from megarepartos.models.empresa import Empresa
 from megarepartos.models.producto import Producto
+from megarepartos.models.zona import Zona
 
 
 @dataclass(slots=True)
@@ -38,6 +39,8 @@ class LinkPublicoData:
     empresa_nombre: str
     cliente_nombre_completo: str
     cliente_telefono: str
+    zona_nombre: str | None = None
+    zona_dia_visita: str | None = None
     productos_habituales: list[HabitualPublico] = field(default_factory=list)
 
 
@@ -68,6 +71,16 @@ async def obtener_info_link(
         await session.execute(select(Empresa).where(Empresa.id == cliente.empresa_id))
     ).scalar_one()
 
+    zona_nombre: str | None = None
+    zona_dia_visita: str | None = None
+    if cliente.zona_id:
+        zona = (
+            await session.execute(select(Zona).where(Zona.id == cliente.zona_id))
+        ).scalar_one_or_none()
+        if zona is not None:
+            zona_nombre = zona.nombre
+            zona_dia_visita = zona.dia_visita
+
     rows = (
         await session.execute(
             select(
@@ -86,6 +99,8 @@ async def obtener_info_link(
         empresa_nombre=empresa.nombre,
         cliente_nombre_completo=cliente.nombre_completo,
         cliente_telefono=cliente.telefono,
+        zona_nombre=zona_nombre,
+        zona_dia_visita=zona_dia_visita,
         productos_habituales=[
             HabitualPublico(
                 producto_id=str(r[0]),
