@@ -141,9 +141,7 @@ function SegmentedControl<T extends string>({
           type="button"
           onClick={() => onChange(opt.value)}
           className={`px-3 py-1.5 transition-colors ${
-            value === opt.value
-              ? "bg-sky-600 text-white"
-              : "text-slate-600 hover:bg-slate-50"
+            value === opt.value ? "bg-sky-600 text-white" : "text-slate-600 hover:bg-slate-50"
           }`}
         >
           {opt.label}
@@ -170,9 +168,7 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
         <div className="flex flex-col items-end gap-1">
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-              confirmo
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-slate-100 text-slate-600"
+              confirmo ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
             }`}
           >
             {confirmo ? <Check size={12} /> : <X size={12} />}

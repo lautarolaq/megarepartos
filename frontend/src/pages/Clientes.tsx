@@ -143,9 +143,7 @@ export function ClientesPage() {
               {data.items.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                    {qDebounced || zonaFiltro
-                      ? "Sin resultados."
-                      : "No hay clientes todavía."}
+                    {qDebounced || zonaFiltro ? "Sin resultados." : "No hay clientes todavía."}
                   </td>
                 </tr>
               )}
@@ -218,15 +216,9 @@ export function ClientesPage() {
       )}
 
       <CrearClienteModal open={openCreate} onClose={() => setOpenCreate(false)} />
-      <HabitualesModal
-        cliente={clienteHabituales}
-        onClose={() => setClienteHabituales(null)}
-      />
+      <HabitualesModal cliente={clienteHabituales} onClose={() => setClienteHabituales(null)} />
       <EnviarLinkModal data={linkGenerado} onClose={() => setLinkGenerado(null)} />
-      <EditarClienteModal
-        cliente={clienteEditar}
-        onClose={() => setClienteEditar(null)}
-      />
+      <EditarClienteModal cliente={clienteEditar} onClose={() => setClienteEditar(null)} />
       <CampanaModal
         open={openCampana}
         zonaIdInicial={zonaFiltro}
@@ -259,7 +251,7 @@ function CampanaModal({
   const [items, setItems] = useState<LinkBulkItem[] | null>(null);
   const [enviados, setEnviados] = useState<Set<string>>(new Set());
   const [mensaje, setMensaje] = useState(
-    "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}"
+    "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}",
   );
 
   useEffect(() => {
@@ -276,7 +268,7 @@ function CampanaModal({
       if (zonaId) body.zona_id = zonaId;
       const resp = await api.post<{ items: LinkBulkItem[] }>(
         "/api/clientes/generar-links-bulk",
-        body
+        body,
       );
       return resp.data.items;
     },
@@ -339,10 +331,7 @@ function CampanaModal({
               <Button variant="ghost" onClick={onClose}>
                 Cancelar
               </Button>
-              <Button
-                onClick={() => generar.mutate()}
-                disabled={generar.isPending}
-              >
+              <Button onClick={() => generar.mutate()} disabled={generar.isPending}>
                 {generar.isPending ? "Generando…" : "Generar links"}
               </Button>
             </div>
@@ -352,8 +341,8 @@ function CampanaModal({
         {items && (
           <>
             <p className="text-sm text-slate-600">
-              Tocá <strong>Enviar</strong> para abrir WhatsApp con el chat y el mensaje listo.
-              Marcá los que ya enviaste para no perderte ninguno.
+              Tocá <strong>Enviar</strong> para abrir WhatsApp con el chat y el mensaje listo. Marcá
+              los que ya enviaste para no perderte ninguno.
             </p>
             <p className="text-xs text-slate-500">
               {enviados.size} / {items.length} enviados
@@ -372,9 +361,7 @@ function CampanaModal({
                   <li
                     key={it.cliente_id}
                     className={`flex items-center justify-between gap-2 rounded-md border px-3 py-2 ${
-                      enviado
-                        ? "border-emerald-200 bg-emerald-50"
-                        : "border-slate-200 bg-white"
+                      enviado ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
                     }`}
                   >
                     <div className="min-w-0 flex-1">
@@ -443,14 +430,16 @@ function EditarClienteModal({
   }, [cliente]);
 
   const actualizar = useMutation({
-    mutationFn: async () =>
-      api.patch(`/api/clientes/${cliente!.id}`, {
+    mutationFn: async () => {
+      if (!cliente) throw new Error("missing cliente");
+      return api.patch(`/api/clientes/${cliente.id}`, {
         nombre_completo: nombre,
         telefono,
         direccion: direccion || null,
         zona_id: zonaId || null,
         modalidad,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clientes"] });
       onClose();
@@ -550,12 +539,13 @@ function EnviarLinkModal({
   }, [mensajeDefault]);
 
   if (!data) return null;
+  const datos = data;
 
-  const telDigits = soloNumeros(data.cliente.telefono);
+  const telDigits = soloNumeros(datos.cliente.telefono);
   const waUrl = `https://wa.me/${telDigits}?text=${encodeURIComponent(mensaje)}`;
 
   async function copiar(qué: "link" | "mensaje") {
-    const texto = qué === "link" ? data!.url : mensaje;
+    const texto = qué === "link" ? datos.url : mensaje;
     try {
       await navigator.clipboard.writeText(texto);
       setCopiado(qué);
@@ -569,13 +559,17 @@ function EnviarLinkModal({
     <Modal open={!!data} onClose={onClose} title={`Enviar link a ${primerNombre}`}>
       <div className="flex flex-col gap-3">
         <div>
-          <label className="text-xs font-medium uppercase tracking-wider text-slate-500">
+          <label
+            htmlFor="enviar-link-url"
+            className="text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
             Link
           </label>
           <div className="mt-1 flex gap-2">
             <input
+              id="enviar-link-url"
               readOnly
-              value={data.url}
+              value={datos.url}
               className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700"
               onFocus={(e) => e.currentTarget.select()}
             />
@@ -586,10 +580,14 @@ function EnviarLinkModal({
         </div>
 
         <div>
-          <label className="text-xs font-medium uppercase tracking-wider text-slate-500">
+          <label
+            htmlFor="enviar-link-mensaje"
+            className="text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
             Mensaje
           </label>
           <textarea
+            id="enviar-link-mensaje"
             rows={5}
             value={mensaje}
             onChange={(e) => setMensaje(e.target.value)}
@@ -643,8 +641,10 @@ function HabitualesModal({
 
   const { data: habituales, isLoading } = useQuery({
     queryKey: ["habituales", cliente?.id],
-    queryFn: async (): Promise<{ items: HabitualItem[] }> =>
-      (await api.get(`/api/clientes/${cliente!.id}/productos-habituales`)).data,
+    queryFn: async (): Promise<{ items: HabitualItem[] }> => {
+      if (!cliente) throw new Error("missing cliente");
+      return (await api.get(`/api/clientes/${cliente.id}/productos-habituales`)).data;
+    },
     enabled: !!cliente,
   });
 
@@ -660,10 +660,11 @@ function HabitualesModal({
 
   const guardar = useMutation({
     mutationFn: async () => {
+      if (!cliente) throw new Error("missing cliente");
       const payload = {
         items: items.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad })),
       };
-      return api.put(`/api/clientes/${cliente!.id}/productos-habituales`, payload);
+      return api.put(`/api/clientes/${cliente.id}/productos-habituales`, payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["habituales", cliente?.id] });
@@ -674,8 +675,8 @@ function HabitualesModal({
   function setCantidad(producto_id: string, cantidad: number) {
     setItems((prev) =>
       prev.map((it) =>
-        it.producto_id === producto_id ? { ...it, cantidad: Math.max(0, cantidad) } : it
-      )
+        it.producto_id === producto_id ? { ...it, cantidad: Math.max(0, cantidad) } : it,
+      ),
     );
   }
 
@@ -696,9 +697,7 @@ function HabitualesModal({
   }
 
   const disponibles =
-    productos?.items.filter(
-      (p) => p.activo && !items.some((it) => it.producto_id === p.id)
-    ) ?? [];
+    productos?.items.filter((p) => p.activo && !items.some((it) => it.producto_id === p.id)) ?? [];
 
   return (
     <Modal

@@ -4,20 +4,36 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.domain._events import event_recorder
 from megarepartos.domain._repository import exists_in_empresa, get_or_404
 from megarepartos.infra import geocoding
 from megarepartos.infra.errors import ApiError, ErrorCode
-from megarepartos.models.cliente import Cliente
+from megarepartos.models.cliente import Cliente, ProductoHabitual
+from megarepartos.models.producto import Producto
 from megarepartos.models.zona import Zona
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
+
+
+@dataclass(slots=True)
+class HabitualOut:
+    producto_id: uuid.UUID
+    cantidad: int
+    nombre: str
+    es_retornable: bool
+
+
+@dataclass(slots=True)
+class HabitualIn:
+    producto_id: uuid.UUID
+    cantidad: int
 
 
 def normalizar_telefono(raw: str) -> str:
@@ -240,3 +256,109 @@ def _serializable(v: Any) -> Any:
     if isinstance(v, uuid.UUID):
         return str(v)
     return v
+
+
+# ---- Productos habituales ----
+
+
+async def listar_productos_habituales(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    cliente_id: uuid.UUID,
+) -> list[HabitualOut]:
+    """Devuelve los productos habituales del cliente, orden alfabético."""
+    await obtener_cliente(session, empresa_id=empresa_id, cliente_id=cliente_id)
+    rows = (
+        await session.execute(
+            select(
+                ProductoHabitual.producto_id,
+                ProductoHabitual.cantidad,
+                Producto.nombre,
+                Producto.es_retornable,
+            )
+            .join(Producto, Producto.id == ProductoHabitual.producto_id)
+            .where(ProductoHabitual.cliente_id == cliente_id)
+            .order_by(Producto.nombre.asc())
+        )
+    ).all()
+    return [
+        HabitualOut(producto_id=r[0], cantidad=r[1], nombre=r[2], es_retornable=r[3]) for r in rows
+    ]
+
+
+async def set_productos_habituales(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    cliente_id: uuid.UUID,
+    items: list[HabitualIn],
+) -> list[HabitualOut]:
+    """Reemplaza la lista de habituales (delete + insert).
+
+    Valida que los productos pertenezcan a la empresa.
+    """
+    await obtener_cliente(session, empresa_id=empresa_id, cliente_id=cliente_id)
+
+    if items:
+        producto_ids = [it.producto_id for it in items]
+        rows = (
+            (
+                await session.execute(
+                    select(Producto.id).where(
+                        Producto.id.in_(producto_ids),
+                        Producto.empresa_id == empresa_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        encontrados = set(rows)
+        for pid in producto_ids:
+            if pid not in encontrados:
+                raise ApiError(
+                    ErrorCode.VALIDACION_SEMANTICA,
+                    "Algún producto no existe o no pertenece a la empresa.",
+                )
+
+    await session.execute(delete(ProductoHabitual).where(ProductoHabitual.cliente_id == cliente_id))
+    for it in items:
+        session.add(
+            ProductoHabitual(
+                cliente_id=cliente_id,
+                producto_id=it.producto_id,
+                cantidad=it.cantidad,
+            )
+        )
+    await session.flush()
+
+    return await listar_productos_habituales(session, empresa_id=empresa_id, cliente_id=cliente_id)
+
+
+@dataclass(slots=True)
+class ClienteParaLink:
+    id: uuid.UUID
+    nombre_completo: str
+    telefono: str
+
+
+async def listar_clientes_para_links(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    zona_id: uuid.UUID | None = None,
+) -> list[ClienteParaLink]:
+    """Lista clientes activos (para bulk-generar links). Solo campos necesarios."""
+    items, _ = await listar_clientes(
+        session,
+        empresa_id=empresa_id,
+        zona_id=zona_id,
+        activo=True,
+        limit=MAX_LIMIT,
+        offset=0,
+    )
+    return [
+        ClienteParaLink(id=c.id, nombre_completo=c.nombre_completo, telefono=c.telefono)
+        for c in items
+    ]

@@ -139,6 +139,7 @@ async def test_REQ_LINK_005_post_respuesta_ok(
 
 @pytest.mark.integration
 @pytest.mark.req("REQ-LINK-006")
+@pytest.mark.req("REQ-LINK-007")
 async def test_REQ_LINK_006_respuesta_persiste_evento(
     app_client: AsyncClient,
     db_session: AsyncSession,

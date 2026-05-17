@@ -120,11 +120,13 @@ function EditarEnvaseModal({ envase, onClose }: { envase: Envase | null; onClose
   }, [envase]);
 
   const actualizar = useMutation({
-    mutationFn: async () =>
-      api.patch(`/api/envases/${envase!.id}`, {
+    mutationFn: async () => {
+      if (!envase) throw new Error("missing envase");
+      return api.patch(`/api/envases/${envase.id}`, {
         nombre,
         valor_referencial: valor || null,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["envases"] });
       onClose();
@@ -156,7 +158,10 @@ function EditarEnvaseModal({ envase, onClose }: { envase: Envase | null; onClose
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={() => actualizar.mutate()} disabled={!nombre.trim() || actualizar.isPending}>
+          <Button
+            onClick={() => actualizar.mutate()}
+            disabled={!nombre.trim() || actualizar.isPending}
+          >
             {actualizar.isPending ? "Guardando…" : "Guardar"}
           </Button>
         </div>
