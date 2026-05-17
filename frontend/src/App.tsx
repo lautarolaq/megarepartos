@@ -1,6 +1,7 @@
 import { AuthCallbackPage } from "@/pages/AuthCallback";
 import { ClientesPage } from "@/pages/Clientes";
 import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
+import { EmpresaPage } from "@/pages/Empresa";
 import { EnvasesPage } from "@/pages/Envases";
 import { LoginPage } from "@/pages/Login";
 import { PedidosPage } from "@/pages/Pedidos";
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="zonas" element={<ZonasPage />} />
         <Route path="clientes" element={<ClientesPage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
+        <Route path="empresa" element={<EmpresaPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
