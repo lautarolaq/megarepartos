@@ -8,6 +8,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,6 +49,24 @@ app = FastAPI(
     title="Megarepartos API",
     version=__version__,
     lifespan=lifespan,
+)
+
+# CORS: en local permitimos `localhost:5173` (Vite dev server). En prod,
+# el frontend va a estar en el mismo dominio que el backend (Cloud Run +
+# Cloud Storage), pero por las dudas dejamos configurable.
+_settings = get_settings()
+_allowed_origins = (
+    ["http://localhost:5173", "http://127.0.0.1:5173"]
+    if _settings.app_env == "local"
+    else []  # producción: same-origin, no CORS necesario
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,  # necesario para que el browser mande la cookie mr_refresh
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
 
 # Middleware antes de los routers — captura request_id, ip, user_agent para
