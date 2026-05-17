@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { Check, MessageSquare, X } from "lucide-react";
+import { Check, MessageSquare, Send, X } from "lucide-react";
 import { useState } from "react";
 
 interface ProductoPedido {
@@ -157,12 +157,14 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
   const confirmo = pedido.accion === "confirmo";
   const llenos = pedido.productos.filter((p) => p.cantidad_llenos > 0);
   const vacios = pedido.productos.filter((p) => p.es_retornable && p.cantidad_vacios > 0);
+  const telDigits = pedido.cliente_telefono.replace(/\D/g, "");
+  const waUrl = `https://wa.me/${telDigits}`;
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <header className="flex items-start justify-between">
-        <div>
-          <h3 className="font-semibold text-slate-800">{pedido.cliente_nombre}</h3>
+      <header className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold text-slate-800">{pedido.cliente_nombre}</h3>
           <p className="text-xs text-slate-500">{pedido.cliente_telefono}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -211,6 +213,18 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
           “{pedido.observacion}”
         </p>
       )}
+
+      <div className="mt-3 flex justify-end">
+        <a
+          href={waUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+        >
+          <Send size={12} />
+          Abrir WhatsApp
+        </a>
+      </div>
     </article>
   );
 }
