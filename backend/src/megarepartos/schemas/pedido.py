@@ -30,6 +30,9 @@ class PedidoOut(BaseModel):
     cliente_id: uuid.UUID
     cliente_nombre: str
     cliente_telefono: str
+    cliente_direccion: str | None = None
+    cliente_zona_id: uuid.UUID | None = None
+    cliente_zona_nombre: str | None = None
     accion: str  # "confirmo" | "rechazo"
     productos: list[ProductoPedido] = []
     observacion: str | None = None

@@ -18,6 +18,9 @@ interface Pedido {
   cliente_id: string;
   cliente_nombre: string;
   cliente_telefono: string;
+  cliente_direccion: string | null;
+  cliente_zona_id: string | null;
+  cliente_zona_nombre: string | null;
   accion: "confirmo" | "rechazo" | string;
   productos: ProductoPedido[];
   observacion: string | null;
@@ -54,6 +57,7 @@ const FECHA_DIAS: Record<FiltroFecha, number | null> = {
 export function PedidosPage() {
   const [filtroAccion, setFiltroAccion] = useState<FiltroAccion>("todos");
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("semana");
+  const [agruparZona, setAgruparZona] = useState(false);
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
 
@@ -158,6 +162,15 @@ export function PedidosPage() {
             className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
           />
         </div>
+        <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={agruparZona}
+            onChange={(e) => setAgruparZona(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Agrupar por zona
+        </label>
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Cargando…</p>}
@@ -177,13 +190,53 @@ export function PedidosPage() {
           <p className="mt-4 text-xs text-slate-500">
             {data.total} pedido{data.total === 1 ? "" : "s"}
           </p>
-          <div className="mt-2 flex flex-col gap-3">
-            {data.items.map((p) => (
+          {agruparZona ? (
+            <PedidosPorZona items={data.items} />
+          ) : (
+            <div className="mt-2 flex flex-col gap-3">
+              {data.items.map((p) => (
+                <PedidoCard key={p.evento_id} pedido={p} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PedidosPorZona({ items }: { items: Pedido[] }) {
+  // Agrupar por zona_nombre. Sin zona va al final como "Sin zona".
+  const grupos = new Map<string, Pedido[]>();
+  for (const p of items) {
+    const key = p.cliente_zona_nombre ?? "Sin zona";
+    const arr = grupos.get(key) ?? [];
+    arr.push(p);
+    grupos.set(key, arr);
+  }
+  const ordenadas = Array.from(grupos.entries()).sort(([a], [b]) => {
+    if (a === "Sin zona") return 1;
+    if (b === "Sin zona") return -1;
+    return a.localeCompare(b);
+  });
+
+  return (
+    <div className="mt-2 flex flex-col gap-6">
+      {ordenadas.map(([zona, pedidos]) => (
+        <section key={zona}>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
+            {zona}
+            <span className="ml-2 font-normal text-slate-400">
+              ({pedidos.length} pedido{pedidos.length === 1 ? "" : "s"})
+            </span>
+          </h3>
+          <div className="flex flex-col gap-3">
+            {pedidos.map((p) => (
               <PedidoCard key={p.evento_id} pedido={p} />
             ))}
           </div>
-        </>
-      )}
+        </section>
+      ))}
     </div>
   );
 }
@@ -254,6 +307,14 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
             </RouterLink>
           </h3>
           <p className="text-xs text-slate-500">{pedido.cliente_telefono}</p>
+          {pedido.cliente_direccion && (
+            <p className="mt-0.5 text-xs text-slate-500">{pedido.cliente_direccion}</p>
+          )}
+          {pedido.cliente_zona_nombre && (
+            <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+              {pedido.cliente_zona_nombre}
+            </span>
+          )}
         </div>
         <div className="flex flex-col items-end gap-1">
           <span
