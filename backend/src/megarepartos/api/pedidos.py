@@ -15,9 +15,16 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from megarepartos.domain.pedidos import listar_pedidos, stats_pedidos
+from megarepartos.domain.pedidos import listar_pedidos, listar_pendientes, stats_pedidos
 from megarepartos.infra.auth import TokenClaims, authenticated_session, current_claims
-from megarepartos.schemas.pedido import PedidoListOut, PedidoOut, PedidoStatsOut, ProductoPedido
+from megarepartos.schemas.pedido import (
+    PedidoListOut,
+    PedidoOut,
+    PedidoStatsOut,
+    PendienteOut,
+    PendientesListOut,
+    ProductoPedido,
+)
 
 router = APIRouter(prefix="/api/pedidos", tags=["pedidos"])
 
@@ -153,3 +160,23 @@ async def export_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="pedidos.csv"'},
     )
+
+
+@router.get("/pendientes", response_model=PendientesListOut)
+async def pendientes(
+    claims: ClaimsDep,
+    session: SessionDep,
+    desde_dias: Annotated[int, Query(ge=1, le=90)] = 7,
+) -> PendientesListOut:
+    """REQ-PED-006 (SPEC 6.9): clientes con link enviado y sin respuesta posterior."""
+    rows = await listar_pendientes(session, empresa_id=claims.empresa_id, desde_dias=desde_dias)
+    items = [
+        PendienteOut(
+            cliente_id=r.cliente_id,
+            cliente_nombre=r.cliente_nombre,
+            cliente_telefono=r.cliente_telefono,
+            fecha_link=r.fecha_link,
+        )
+        for r in rows
+    ]
+    return PendientesListOut(items=items, total=len(items))

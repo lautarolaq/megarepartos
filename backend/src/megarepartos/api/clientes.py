@@ -20,6 +20,7 @@ from megarepartos.domain.clientes import (
     listar_clientes_para_links,
     listar_productos_habituales,
     obtener_cliente,
+    registrar_link_generado,
     set_productos_habituales,
 )
 from megarepartos.infra.auth import (
@@ -217,6 +218,12 @@ async def generar_link(
     # Verifica que el cliente exista en la empresa del admin (RLS + filtro).
     await obtener_cliente(session, empresa_id=admin_claims.empresa_id, cliente_id=cliente_id)
     token = sign_link_token(settings, cliente_id=cliente_id)
+    await registrar_link_generado(
+        session,
+        empresa_id=admin_claims.empresa_id,
+        usuario_id=admin_claims.sub,
+        cliente_id=cliente_id,
+    )
     return GenerarLinkOut(
         url=f"{settings.frontend_base_url}/c/{token}",
         token=token,
@@ -245,13 +252,20 @@ async def generar_links_bulk(
     clientes = await listar_clientes_para_links(
         session, empresa_id=admin_claims.empresa_id, zona_id=zona_id
     )
-    items = [
-        LinkBulkItem(
-            cliente_id=str(c.id),
-            nombre_completo=c.nombre_completo,
-            telefono=c.telefono,
-            url=f"{settings.frontend_base_url}/c/{sign_link_token(settings, cliente_id=c.id)}",
+    items: list[LinkBulkItem] = []
+    for c in clientes:
+        await registrar_link_generado(
+            session,
+            empresa_id=admin_claims.empresa_id,
+            usuario_id=admin_claims.sub,
+            cliente_id=c.id,
         )
-        for c in clientes
-    ]
+        items.append(
+            LinkBulkItem(
+                cliente_id=str(c.id),
+                nombre_completo=c.nombre_completo,
+                telefono=c.telefono,
+                url=f"{settings.frontend_base_url}/c/{sign_link_token(settings, cliente_id=c.id)}",
+            )
+        )
     return GenerarLinksBulkOut(items=items)

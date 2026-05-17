@@ -154,6 +154,46 @@ async def test_export_csv(
 
 
 @pytest.mark.integration
+@pytest.mark.req("REQ-PED-006")
+async def test_pendientes_lista_solo_sin_respuesta(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """Genera 2 links (A y B), A responde y B no. Pendientes muestra sólo B."""
+    empresa = await make_empresa(db_session)
+    admin = await make_usuario(db_session, empresa=empresa, rol="admin")
+    await set_tenant_context(db_session, empresa_id=empresa.id, usuario_id=admin.id)
+    cliente_a = await make_cliente(db_session, empresa=empresa, nombre_completo="Cliente A")
+    cliente_b = await make_cliente(db_session, empresa=empresa, nombre_completo="Cliente B")
+
+    tok, _ = issue_access_token(
+        settings=settings, usuario_id=admin.id, empresa_id=empresa.id, rol="admin"
+    )
+    headers = {"Authorization": f"Bearer {tok}"}
+
+    r1 = await app_client.post(f"/api/clientes/{cliente_a.id}/generar-link", headers=headers)
+    assert r1.status_code == 200
+    r2 = await app_client.post(f"/api/clientes/{cliente_b.id}/generar-link", headers=headers)
+    assert r2.status_code == 200
+
+    # Sólo A responde.
+    await db_session.execute(text("SET LOCAL ROLE megarepartos_app"))
+    token_a = sign_link_token(settings, cliente_id=cliente_a.id)
+    rresp = await app_client.post(
+        f"/api/publico/c/{token_a}/respuesta", json={"accion": "confirmo"}
+    )
+    assert rresp.status_code == 200
+
+    resp = await app_client.get("/api/pedidos/pendientes", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["cliente_nombre"] == "Cliente B"
+
+
+@pytest.mark.integration
 @pytest.mark.req("REQ-PED-003")
 async def test_listar_pedidos_filtra_por_accion(
     app_client: AsyncClient,

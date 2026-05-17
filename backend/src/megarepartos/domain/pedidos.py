@@ -36,6 +36,14 @@ class PedidoStats:
     clientes_activos: int
 
 
+@dataclass(slots=True)
+class PendienteRow:
+    cliente_id: uuid.UUID
+    cliente_nombre: str
+    cliente_telefono: str
+    fecha_link: datetime
+
+
 async def listar_pedidos(
     session: AsyncSession,
     *,
@@ -158,3 +166,76 @@ async def stats_pedidos(
         pedidos_semana=pedidos_semana,
         clientes_activos=clientes_activos,
     )
+
+
+async def listar_pendientes(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    desde_dias: int = 7,
+) -> list[PendienteRow]:
+    """REQ-PED-006 (SPEC 6.9): clientes con `link_generado` en los últimos
+    `desde_dias` días y sin `respondio_link` posterior.
+
+    Para cada cliente se queda con la fecha del último link generado.
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=desde_dias)
+
+    # Latest link_generado per cliente, in window.
+    latest_link = (
+        select(
+            EventoDominio.entidad_id.label("cliente_id"),
+            func.max(EventoDominio.fecha).label("fecha_link"),
+        )
+        .where(
+            EventoDominio.empresa_id == empresa_id,
+            EventoDominio.entidad_tipo == "cliente",
+            EventoDominio.accion == "link_generado",
+            EventoDominio.fecha >= cutoff,
+        )
+        .group_by(EventoDominio.entidad_id)
+        .subquery()
+    )
+
+    # Latest respondio_link per cliente.
+    latest_resp = (
+        select(
+            EventoDominio.entidad_id.label("cliente_id"),
+            func.max(EventoDominio.fecha).label("fecha_resp"),
+        )
+        .where(
+            EventoDominio.empresa_id == empresa_id,
+            EventoDominio.entidad_tipo == "cliente",
+            EventoDominio.accion == "respondio_link",
+        )
+        .group_by(EventoDominio.entidad_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            latest_link.c.cliente_id,
+            Cliente.nombre_completo,
+            Cliente.telefono,
+            latest_link.c.fecha_link,
+        )
+        .join(Cliente, Cliente.id == latest_link.c.cliente_id)
+        .outerjoin(latest_resp, latest_resp.c.cliente_id == latest_link.c.cliente_id)
+        .where(
+            Cliente.activo.is_(True),
+            (latest_resp.c.fecha_resp.is_(None))
+            | (latest_resp.c.fecha_resp < latest_link.c.fecha_link),
+        )
+        .order_by(latest_link.c.fecha_link.desc())
+    )
+
+    rows = (await session.execute(stmt)).all()
+    return [
+        PendienteRow(
+            cliente_id=r[0],
+            cliente_nombre=r[1],
+            cliente_telefono=r[2],
+            fecha_link=r[3],
+        )
+        for r in rows
+    ]
