@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: megarepartos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: megarepartos
+      POSTGRES_PASSWORD: megarepartos
+      POSTGRES_DB: megarepartos
+      TZ: America/Argentina/Cordoba
+    ports:
+      # Mapeado a 5433 en host para no chocar con otros Postgres (Homebrew, IAP, etc.).
+      - "5433:5432"
+    volumes:
+      - megarepartos-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U megarepartos -d megarepartos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  megarepartos-db-data:

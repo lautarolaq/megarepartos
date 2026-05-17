@@ -1,0 +1,43 @@
+# Plantilla para una tarea. Copiar como `tareas/TASK-XXX.yaml` y completar.
+# Ver sección 20 del SPEC para detalles del flujo.
+
+# Identificación
+id: TASK-XXX
+nombre: ""
+tipo: feature  # feature | bugfix | refactor | docs | infra
+sprint: 0
+prioridad: media  # alta | media | baja
+
+# Contexto
+contexto: |
+  Por qué se necesita esto. Qué problema resuelve.
+
+# Comportamiento esperado (se vuelca a behaviors/X.md)
+comportamiento:
+  - "REQ-XXX-001: descripción del requisito"
+  - "REQ-XXX-002: otro requisito"
+
+no_debe:
+  - "Cosa que no debe hacer"
+
+# Archivos
+archivos_nuevos: []
+archivos_a_modificar: []
+archivos_NO_tocar: []
+
+# Tests
+tests:
+  - "test_REQ_XXX_001_descripcion"
+
+# Aceptación
+aceptacion:
+  - "make test verde"
+  - "make check-arquitectura verde"
+  - "make behavior-coverage verde"
+
+# Dependencias
+depende_de: []
+
+# Notas
+notas: |
+  Cualquier contexto adicional.
