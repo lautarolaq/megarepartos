@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from megarepartos.config import Settings, get_settings
 from megarepartos.domain.clientes import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
@@ -18,10 +19,12 @@ from megarepartos.domain.clientes import (
     obtener_cliente,
 )
 from megarepartos.infra.auth import (
+    LINK_TOKEN_DEFAULT_TTL_SECONDS,
     TokenClaims,
     authenticated_session,
     current_claims,
     require_rol,
+    sign_link_token,
 )
 from megarepartos.schemas.cliente import (
     ClienteCreate,
@@ -29,12 +32,14 @@ from megarepartos.schemas.cliente import (
     ClienteOut,
     ClienteUpdate,
 )
+from megarepartos.schemas.publico import GenerarLinkOut
 
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
 
 SessionDep = Annotated[AsyncSession, Depends(authenticated_session)]
 ClaimsDep = Annotated[TokenClaims, Depends(current_claims)]
 AdminDep = Annotated[TokenClaims, Depends(require_rol("admin"))]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("", response_model=ClienteListOut)
@@ -130,3 +135,25 @@ async def borrar(
         cliente_id=cliente_id,
     )
     return Response(status_code=204)
+
+
+@router.post("/{cliente_id}/generar-link", response_model=GenerarLinkOut)
+async def generar_link(
+    cliente_id: uuid.UUID,
+    admin_claims: AdminDep,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> GenerarLinkOut:
+    """REQ-LINK-008: genera un link público firmado para un cliente.
+
+    El admin lo pega en WhatsApp manualmente (hasta que la extensión Chrome
+    haga envío automático en Sprint 6).
+    """
+    # Verifica que el cliente exista en la empresa del admin (RLS + filtro).
+    await obtener_cliente(session, empresa_id=admin_claims.empresa_id, cliente_id=cliente_id)
+    token = sign_link_token(settings, cliente_id=cliente_id)
+    return GenerarLinkOut(
+        url=f"{settings.frontend_base_url}/c/{token}",
+        token=token,
+        expira_en_dias=LINK_TOKEN_DEFAULT_TTL_SECONDS // (24 * 60 * 60),
+    )

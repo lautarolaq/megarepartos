@@ -140,6 +140,54 @@ def decode_token(token: str, *, settings: Settings, expected_type: TokenType) ->
         raise ApiError(ErrorCode.AUTH_INVALID, "Claims del token mal formados.") from exc
 
 
+# Link tokens (motor 2: link público del cliente) --------------------------
+
+LINK_TOKEN_DEFAULT_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 días
+
+
+def sign_link_token(
+    settings: Settings,
+    *,
+    cliente_id: uuid.UUID,
+    ttl_seconds: int = LINK_TOKEN_DEFAULT_TTL_SECONDS,
+) -> str:
+    """REQ-LINK-001: token firmado HMAC-SHA256.
+
+    Formato `<cliente_id>.<expires_ts>.<sig>`. Stateless — no se persiste.
+    """
+    expires_ts = str(_now_ts() + ttl_seconds)
+    payload = f"{cliente_id}.{expires_ts}"
+    sig = hmac.new(
+        settings.jwt_secret.encode(),
+        payload.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{cliente_id}.{expires_ts}.{sig}"
+
+
+def verify_link_token(settings: Settings, token: str) -> uuid.UUID:
+    """REQ-LINK-002: valida firma + TTL. Devuelve `cliente_id`."""
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "Token con formato inválido.")
+    cliente_id_str, expires_ts_str, sig = parts
+    expected_sig = hmac.new(
+        settings.jwt_secret.encode(),
+        f"{cliente_id_str}.{expires_ts_str}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_sig, sig):
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "Firma inválida.")
+    try:
+        expires_ts = int(expires_ts_str)
+        cliente_id = uuid.UUID(cliente_id_str)
+    except ValueError as exc:
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "Token mal formado.") from exc
+    if _now_ts() > expires_ts:
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "El link expiró.")
+    return cliente_id
+
+
 # State (CSRF) -------------------------------------------------------------
 
 STATE_TTL_SECONDS = 10 * 60
