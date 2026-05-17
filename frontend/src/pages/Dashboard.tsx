@@ -2,7 +2,17 @@ import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Inbox, LogOut, Package, Truck, User, Users, Warehouse } from "lucide-react";
+import {
+  Building2,
+  Clock,
+  Inbox,
+  LogOut,
+  Package,
+  Truck,
+  User,
+  Users,
+  Warehouse,
+} from "lucide-react";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 
 interface MeResponse {
@@ -66,6 +76,9 @@ export function DashboardLayout() {
           </NavItem>
           <NavItem to="/dashboard/usuarios" icon={<User size={16} />}>
             Usuarios
+          </NavItem>
+          <NavItem to="/dashboard/empresa" icon={<Building2 size={16} />}>
+            Empresa
           </NavItem>
         </nav>
         <div className="mt-8 border-t border-slate-200 pt-4">

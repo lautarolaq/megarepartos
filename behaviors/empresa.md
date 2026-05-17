@@ -55,6 +55,17 @@ encuentra el mismo registro.
 Si el `Usuario` existe pero está `activo = false`, `login_or_create_user`
 levanta `ApiError(CONFLICTO_ESTADO)`. El handler de FastAPI lo mapea a HTTP 409.
 
+### REQ-EMP-007
+
+`PATCH /api/empresa/me` (admin) permite actualizar `nombre`, `tipo_negocio`,
+`direccion_deposito` y `timezone` de la empresa del JWT. Cambios persistidos
+como `evento_dominio` con `entidad_tipo="empresa"`, `accion="modificada"`.
+
+### REQ-EMP-008
+
+`GET /api/empresa/me` (cualquier rol autenticado) devuelve la empresa
+del JWT con campos públicos (sin `plan_id`, sin `config_jsonb`).
+
 ## No-requisitos
 
 - No soporta invitar usuarios a una empresa existente (TASK-012).

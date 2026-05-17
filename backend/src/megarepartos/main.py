@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from megarepartos import __version__
 from megarepartos.api import auth as auth_router
 from megarepartos.api import clientes as clientes_router
+from megarepartos.api import empresa as empresa_router
 from megarepartos.api import envases as envases_router
 from megarepartos.api import pedidos as pedidos_router
 from megarepartos.api import productos as productos_router
@@ -83,6 +84,7 @@ app.include_router(clientes_router.router)
 app.include_router(usuarios_router.router)
 app.include_router(publico_router.router)
 app.include_router(pedidos_router.router)
+app.include_router(empresa_router.router)
 
 
 @app.exception_handler(ApiError)
