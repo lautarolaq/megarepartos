@@ -8,17 +8,25 @@ Falla rápido al startup si falta config crítica.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Buscar `.env` en el root del proyecto (dos niveles arriba de este archivo:
+# backend/src/megarepartos/config.py → backend/src/megarepartos → backend/src → backend → root).
+# Así funciona sin importar desde qué cwd se lance uvicorn.
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_ENV_FILE = _PROJECT_ROOT / ".env"
 
 
 class Settings(BaseSettings):
     """Settings globales del backend."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Lista de rutas: si existe `backend/.env` la usa primero, sino el `.env` raíz.
+        env_file=("backend/.env", str(_ENV_FILE)),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
