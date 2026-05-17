@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Pre-push hook: corre los mismos checks que CI antes de pushear.
+# Así si algo está roto te enterás localmente en vez de gastar minutos de CI.
+#
+# Activación (una vez):
+#   git config core.hooksPath .githooks
+#
+# Skip puntual (cuando sabés lo que hacés):
+#   git push --no-verify
+
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Detectar qué cambió respecto al remoto para skipear lo irrelevante.
+# Si no hay tracking branch, asumimos main.
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/main")
+CHANGED=$(git diff --name-only "$UPSTREAM"...HEAD 2>/dev/null || git diff --name-only HEAD)
+
+BACKEND_CHANGED=0
+FRONTEND_CHANGED=0
+SCRIPTS_CHANGED=0
+
+echo "$CHANGED" | grep -q '^backend/' && BACKEND_CHANGED=1 || true
+echo "$CHANGED" | grep -q '^frontend/' && FRONTEND_CHANGED=1 || true
+echo "$CHANGED" | grep -qE '^(scripts/|behaviors/|backend/src/megarepartos/(api|domain)/)' && SCRIPTS_CHANGED=1 || true
+
+# Si no detectamos archivos a chequear (ej. PR de docs), correr scripts igual.
+if [ $BACKEND_CHANGED -eq 0 ] && [ $FRONTEND_CHANGED -eq 0 ] && [ $SCRIPTS_CHANGED -eq 0 ]; then
+  echo "pre-push: sin cambios relevantes, skip."
+  exit 0
+fi
+
+if [ $BACKEND_CHANGED -eq 1 ]; then
+  echo "▶ Backend (ruff + mypy + pytest)"
+  if [ -d backend/.venv ]; then
+    source backend/.venv/bin/activate
+  fi
+  cd backend
+  ruff check .
+  ruff format --check .
+  mypy src
+  pytest --import-mode=importlib --override-ini="addopts=" -q 2>&1 | tail -3
+  cd "$ROOT"
+fi
+
+if [ $FRONTEND_CHANGED -eq 1 ]; then
+  echo "▶ Frontend (biome + tsc + build)"
+  cd frontend
+  npm run lint
+  npx tsc --noEmit
+  npm run build > /dev/null
+  cd "$ROOT"
+fi
+
+if [ $SCRIPTS_CHANGED -eq 1 ]; then
+  echo "▶ Scripts (arquitectura + behavior + isolation)"
+  python3 scripts/check_arquitectura.py
+  python3 scripts/behavior_coverage.py
+  python3 scripts/check_endpoint_isolation.py
+fi
+
+echo "✓ Todos los checks pasaron — pusheando."
