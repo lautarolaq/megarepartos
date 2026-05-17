@@ -1,0 +1,83 @@
+id: TASK-011
+nombre: "CRUD clientes con búsqueda difusa"
+tipo: feature
+sprint: 2
+prioridad: alta
+
+contexto: |
+  Clientes es la entidad central del producto: cada sodería tiene 100-2000
+  clientes y los gestiona desde acá. Mismo patrón que productos/envases/zonas
+  + filtros adicionales (modalidad, zona, día, condición de pago) + búsqueda
+  difusa por nombre (ILIKE %q%) o teléfono (prefix match).
+
+  Endpoints:
+    - GET    /api/clientes              listado paginado + filtros + búsqueda
+    - GET    /api/clientes/{id}         detalle
+    - POST   /api/clientes               crear (admin)
+    - PATCH  /api/clientes/{id}         actualizar (admin)
+    - DELETE /api/clientes/{id}        soft delete (admin)
+
+  Geocoding de direcciones (TASK-013) viene después — acá solo guardamos
+  las coordenadas si vienen en el payload.
+
+comportamiento:
+  - "REQ-CLI-001: GET /api/clientes devuelve los clientes de la empresa, paginado (limit=50 default, max=200), ordenado por nombre_completo ASC."
+  - "REQ-CLI-002: GET /api/clientes?q=texto busca clientes con nombre_completo ILIKE %texto% O telefono starting-with normalizado."
+  - "REQ-CLI-003: GET /api/clientes?modalidad=fijo|consulta|demanda filtra."
+  - "REQ-CLI-004: GET /api/clientes?zona_id=<uuid> filtra por zona."
+  - "REQ-CLI-005: GET /api/clientes?activo=true filtra por activo."
+  - "REQ-CLI-006: GET /api/clientes/{id} ajeno devuelve 404."
+  - "REQ-CLI-007: POST /api/clientes crea cliente (admin)."
+  - "REQ-CLI-008: POST con nombre_completo vacío o telefono inválido devuelve 400."
+  - "REQ-CLI-009: POST con zona_id ajeno a la empresa devuelve 422 VALIDACION_SEMANTICA."
+  - "REQ-CLI-010: telefono se normaliza a formato internacional (+54...) al guardar."
+  - "REQ-CLI-011: PATCH /api/clientes/{id} parcial."
+  - "REQ-CLI-012: DELETE /api/clientes/{id} soft delete idempotente."
+  - "REQ-CLI-013: Cada POST/PATCH/DELETE genera evento_dominio."
+
+no_debe:
+  - "Permitir hard delete."
+  - "Aceptar telefono sin algún dígito (validación mínima)."
+  - "Crear clientes sin empresa_id explícito (regla CLAUDE.md #1)."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/schemas/cliente.py"
+  - "backend/src/megarepartos/domain/clientes.py"
+  - "backend/src/megarepartos/api/clientes.py"
+  - "behaviors/clientes.md"
+  - "backend/tests/integration/test_clientes_api.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/main.py"
+
+archivos_NO_tocar:
+  - "extension/**"
+  - "frontend/**"
+
+tests:
+  - "test_REQ_CLI_001_listado_paginado_ordenado"
+  - "test_REQ_CLI_002_busqueda_por_nombre_o_telefono"
+  - "test_REQ_CLI_003_filtro_modalidad"
+  - "test_REQ_CLI_004_filtro_zona"
+  - "test_REQ_CLI_006_detalle_ajeno_404"
+  - "test_REQ_CLI_007_post_admin_crea"
+  - "test_REQ_CLI_009_zona_ajena_422"
+  - "test_REQ_CLI_010_telefono_normalizado"
+  - "test_REQ_CLI_011_patch_parcial"
+  - "test_REQ_CLI_012_delete_soft_idempotente"
+
+aceptacion:
+  - "make test verde"
+  - "Endpoint isolation verde (todos los nuevos endpoints autenticados con isolation test)"
+
+depende_de:
+  - "TASK-008"
+  - "TASK-010"
+
+notas: |
+  Normalización de teléfono: simple — agregar `+54` si no empieza con `+`,
+  remover espacios/guiones. Una versión más sofisticada (validar formato
+  por país) se hace después si hace falta.
+
+  Búsqueda difusa: ILIKE + prefix match es suficiente para MVP. pg_trgm
+  con índice GIN se evalúa si > 5000 clientes y queries lentas (TASK posterior).
