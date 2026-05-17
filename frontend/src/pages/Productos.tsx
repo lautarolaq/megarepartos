@@ -3,8 +3,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface Producto {
   id: string;
@@ -19,6 +19,7 @@ interface Producto {
 export function ProductosPage() {
   const qc = useQueryClient();
   const [openCreate, setOpenCreate] = useState(false);
+  const [productoEditar, setProductoEditar] = useState<Producto | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["productos"],
@@ -75,17 +76,28 @@ export function ProductosPage() {
                 </td>
                 <td className="px-4 py-2 text-right">
                   {p.activo && (
-                    <button
-                      type="button"
-                      className="text-rose-600 hover:text-rose-800"
-                      onClick={() => {
-                        if (confirm(`¿Desactivar "${p.nombre}"?`)) {
-                          desactivarMut.mutate(p.id);
-                        }
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        className="text-slate-600 hover:text-slate-800"
+                        title="Editar"
+                        onClick={() => setProductoEditar(p)}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-rose-600 hover:text-rose-800"
+                        title="Desactivar"
+                        onClick={() => {
+                          if (confirm(`¿Desactivar "${p.nombre}"?`)) {
+                            desactivarMut.mutate(p.id);
+                          }
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -95,7 +107,88 @@ export function ProductosPage() {
       )}
 
       <CrearProductoModal open={openCreate} onClose={() => setOpenCreate(false)} />
+      <EditarProductoModal
+        producto={productoEditar}
+        onClose={() => setProductoEditar(null)}
+      />
     </div>
+  );
+}
+
+function EditarProductoModal({
+  producto,
+  onClose,
+}: {
+  producto: Producto | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [nombre, setNombre] = useState("");
+  const [precio, setPrecio] = useState("");
+  const [retornable, setRetornable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (producto) {
+      setNombre(producto.nombre);
+      setPrecio(producto.precio_unitario_default ?? "");
+      setRetornable(producto.es_retornable);
+      setError(null);
+    }
+  }, [producto]);
+
+  const actualizar = useMutation({
+    mutationFn: async () =>
+      api.patch(`/api/productos/${producto!.id}`, {
+        nombre,
+        precio_unitario_default: precio || null,
+        es_retornable: retornable,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["productos"] });
+      onClose();
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: { message?: string } } } };
+      setError(e.response?.data?.error?.message ?? "Error al actualizar producto.");
+    },
+  });
+
+  return (
+    <Modal open={!!producto} onClose={onClose} title="Editar producto">
+      <div className="flex flex-col gap-3">
+        <Input
+          label="Nombre"
+          name="nombre"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+        />
+        <Input
+          label="Precio unitario"
+          name="precio"
+          value={precio}
+          onChange={(e) => setPrecio(e.target.value)}
+          inputMode="decimal"
+        />
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={retornable}
+            onChange={(e) => setRetornable(e.target.checked)}
+          />
+          Es retornable (requiere envase)
+        </label>
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        <div className="mt-2 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={() => actualizar.mutate()} disabled={!nombre.trim() || actualizar.isPending}>
+            {actualizar.isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

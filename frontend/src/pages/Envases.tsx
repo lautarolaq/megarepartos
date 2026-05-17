@@ -3,8 +3,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface Envase {
   id: string;
@@ -16,6 +16,7 @@ interface Envase {
 export function EnvasesPage() {
   const qc = useQueryClient();
   const [openCreate, setOpenCreate] = useState(false);
+  const [envaseEditar, setEnvaseEditar] = useState<Envase | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["envases"],
@@ -70,15 +71,26 @@ export function EnvasesPage() {
                 </td>
                 <td className="px-4 py-2 text-right">
                   {e.activo && (
-                    <button
-                      type="button"
-                      className="text-rose-600 hover:text-rose-800"
-                      onClick={() => {
-                        if (confirm(`¿Desactivar "${e.nombre}"?`)) desactivarMut.mutate(e.id);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        className="text-slate-600 hover:text-slate-800"
+                        title="Editar"
+                        onClick={() => setEnvaseEditar(e)}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-rose-600 hover:text-rose-800"
+                        title="Desactivar"
+                        onClick={() => {
+                          if (confirm(`¿Desactivar "${e.nombre}"?`)) desactivarMut.mutate(e.id);
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -88,7 +100,68 @@ export function EnvasesPage() {
       )}
 
       <CrearEnvaseModal open={openCreate} onClose={() => setOpenCreate(false)} />
+      <EditarEnvaseModal envase={envaseEditar} onClose={() => setEnvaseEditar(null)} />
     </div>
+  );
+}
+
+function EditarEnvaseModal({ envase, onClose }: { envase: Envase | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [nombre, setNombre] = useState("");
+  const [valor, setValor] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (envase) {
+      setNombre(envase.nombre);
+      setValor(envase.valor_referencial ?? "");
+      setError(null);
+    }
+  }, [envase]);
+
+  const actualizar = useMutation({
+    mutationFn: async () =>
+      api.patch(`/api/envases/${envase!.id}`, {
+        nombre,
+        valor_referencial: valor || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["envases"] });
+      onClose();
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: { message?: string } } } };
+      setError(e.response?.data?.error?.message ?? "Error al actualizar envase.");
+    },
+  });
+
+  return (
+    <Modal open={!!envase} onClose={onClose} title="Editar envase">
+      <div className="flex flex-col gap-3">
+        <Input
+          label="Nombre"
+          name="nombre"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+        />
+        <Input
+          label="Valor referencial"
+          name="valor"
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          inputMode="decimal"
+        />
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        <div className="mt-2 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={() => actualizar.mutate()} disabled={!nombre.trim() || actualizar.isPending}>
+            {actualizar.isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
