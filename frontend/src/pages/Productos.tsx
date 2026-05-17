@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Package, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Producto {
@@ -39,7 +40,15 @@ export function ProductosPage() {
       </div>
 
       {isLoading && <p className="mt-4 text-slate-500">Cargando…</p>}
-      {data && (
+      {data && data.items.length === 0 && (
+        <EmptyState
+          icon={<Package size={20} />}
+          title="Sin productos todavía"
+          body="Cargá los productos que vendés (Bidón 20L, Soda 1.5L, etc.). Después podés asignarle productos habituales a cada cliente."
+          cta={<Button onClick={() => setOpenCreate(true)}>+ Crear primer producto</Button>}
+        />
+      )}
+      {data && data.items.length > 0 && (
         <table className="mt-6 w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
@@ -51,13 +60,6 @@ export function ProductosPage() {
             </tr>
           </thead>
           <tbody>
-            {data.items.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  No hay productos todavía.
-                </td>
-              </tr>
-            )}
             {data.items.map((p) => (
               <tr key={p.id} className="border-t border-slate-200">
                 <td className="px-4 py-2 font-medium">{p.nombre}</td>

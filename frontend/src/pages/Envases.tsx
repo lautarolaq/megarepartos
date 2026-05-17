@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Warehouse } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Envase {
@@ -36,7 +37,15 @@ export function EnvasesPage() {
       </div>
 
       {isLoading && <p className="mt-4 text-slate-500">Cargando…</p>}
-      {data && (
+      {data && data.items.length === 0 && (
+        <EmptyState
+          icon={<Warehouse size={20} />}
+          title="Sin envases todavía"
+          body="Los envases representan retornables: bidones vacíos que el cliente devuelve. Si vendés productos no-retornables, podés saltearte esta sección."
+          cta={<Button onClick={() => setOpenCreate(true)}>+ Crear primer envase</Button>}
+        />
+      )}
+      {data && data.items.length > 0 && (
         <table className="mt-6 w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
@@ -47,13 +56,6 @@ export function EnvasesPage() {
             </tr>
           </thead>
           <tbody>
-            {data.items.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
-                  No hay envases todavía.
-                </td>
-              </tr>
-            )}
             {data.items.map((e) => (
               <tr key={e.id} className="border-t border-slate-200">
                 <td className="px-4 py-2 font-medium">{e.nombre}</td>
