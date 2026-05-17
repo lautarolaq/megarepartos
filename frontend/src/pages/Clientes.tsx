@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Package, Trash2 } from "lucide-react";
+import { Link2, Package, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Cliente {
@@ -36,6 +36,7 @@ export function ClientesPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [clienteHabituales, setClienteHabituales] = useState<Cliente | null>(null);
   const [linkGenerado, setLinkGenerado] = useState<LinkGenerado | null>(null);
+  const [clienteEditar, setClienteEditar] = useState<Cliente | null>(null);
 
   // Debounce simple sin librería: 300ms.
   useEffect(() => {
@@ -127,6 +128,14 @@ export function ClientesPage() {
                         <button
                           type="button"
                           className="text-slate-600 hover:text-slate-800"
+                          title="Editar"
+                          onClick={() => setClienteEditar(c)}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="text-slate-600 hover:text-slate-800"
                           title="Productos habituales"
                           onClick={() => setClienteHabituales(c)}
                         >
@@ -169,7 +178,103 @@ export function ClientesPage() {
         onClose={() => setClienteHabituales(null)}
       />
       <EnviarLinkModal data={linkGenerado} onClose={() => setLinkGenerado(null)} />
+      <EditarClienteModal
+        cliente={clienteEditar}
+        onClose={() => setClienteEditar(null)}
+      />
     </div>
+  );
+}
+
+function EditarClienteModal({
+  cliente,
+  onClose,
+}: {
+  cliente: Cliente | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [nombre, setNombre] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [modalidad, setModalidad] = useState<"fijo" | "consulta" | "demanda">("consulta");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (cliente) {
+      setNombre(cliente.nombre_completo);
+      setTelefono(cliente.telefono);
+      setDireccion(cliente.direccion ?? "");
+      setModalidad((cliente.modalidad as "fijo" | "consulta" | "demanda") ?? "consulta");
+      setError(null);
+    }
+  }, [cliente]);
+
+  const actualizar = useMutation({
+    mutationFn: async () =>
+      api.patch(`/api/clientes/${cliente!.id}`, {
+        nombre_completo: nombre,
+        telefono,
+        direccion: direccion || null,
+        modalidad,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      onClose();
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: { message?: string } } } };
+      setError(e.response?.data?.error?.message ?? "Error al actualizar cliente.");
+    },
+  });
+
+  return (
+    <Modal open={!!cliente} onClose={onClose} title="Editar cliente">
+      <div className="flex flex-col gap-3">
+        <Input
+          label="Nombre completo"
+          name="nombre"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+        />
+        <Input
+          label="Teléfono"
+          name="telefono"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+        />
+        <Input
+          label="Dirección"
+          name="direccion"
+          value={direccion}
+          onChange={(e) => setDireccion(e.target.value)}
+        />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">Modalidad</span>
+          <select
+            value={modalidad}
+            onChange={(e) => setModalidad(e.target.value as "fijo" | "consulta" | "demanda")}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="consulta">Consulta</option>
+            <option value="fijo">Fijo</option>
+            <option value="demanda">Demanda</option>
+          </select>
+        </label>
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        <div className="mt-2 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => actualizar.mutate()}
+            disabled={!nombre.trim() || !telefono.trim() || actualizar.isPending}
+          >
+            {actualizar.isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
