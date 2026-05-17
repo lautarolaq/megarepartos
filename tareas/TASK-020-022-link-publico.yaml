@@ -1,0 +1,62 @@
+id: TASK-020-022
+nombre: "Link público para cliente: token firmado + página mobile-first"
+tipo: feature
+sprint: 4
+prioridad: alta
+
+contexto: |
+  El "motor 2" del producto del SPEC: cliente recibe un link único por WhatsApp,
+  lo abre en su mobile, ve "Hola Juan! ¿Querés tu pedido mañana?" + botones,
+  responde. Persiste la respuesta.
+
+  Este TASK bundlea pedazos de TASK-020 (templates - mínimo), TASK-021 (tokens)
+  y TASK-022 (página pública).
+
+  Versión mínima viable end-to-end:
+    - Token firmado con cliente_id + TTL.
+    - Endpoint público GET /api/publico/c/{token} → info del cliente + empresa.
+    - Endpoint público POST /api/publico/c/{token}/respuesta → guarda respuesta.
+    - Frontend route /c/:token (sin auth, mobile-first) con UI sí/no.
+
+  El sistema completo con campañas (TASK-026+) tendrá `mensaje_enviado` que
+  origina el token. En esta versión, el token se mintea standalone para
+  demo — un admin endpoint /api/admin-interno/generar-link-cliente lo crea.
+
+comportamiento:
+  - "REQ-LINK-001: `sign_link_token(cliente_id, ttl_dias=30)` devuelve un token HMAC con `<cliente_id>.<ts>.<sig>`."
+  - "REQ-LINK-002: `verify_link_token(token)` devuelve `cliente_id` o levanta `ApiError(VALIDACION_INPUT)` si la firma o el TTL fallan."
+  - "REQ-LINK-003: GET /api/publico/c/{token} devuelve `{empresa: {nombre}, cliente: {nombre_completo, telefono}}` sin auth."
+  - "REQ-LINK-004: GET con token inválido devuelve 400."
+  - "REQ-LINK-005: POST /api/publico/c/{token}/respuesta con `{accion: confirmo|rechazo, datos: {}}` devuelve 200."
+  - "REQ-LINK-006: Frontend /c/:token muestra UI mobile-first responsive (375px base) con nombre del cliente, botones grandes SÍ/NO."
+  - "REQ-LINK-007: Click SÍ/NO llama al POST + muestra pantalla de confirmación."
+  - "REQ-LINK-008: Endpoint admin POST /api/clientes/{id}/generar-link devuelve `{url}` para que el admin lo copie y pegue en WhatsApp."
+
+no_debe:
+  - "Requerir auth en /api/publico/* ni en /c/:token."
+  - "Validar el token via lookup en DB (es stateless, firma + TTL alcanza)."
+  - "Persistir la respuesta hasta que `mensaje_enviado` exista (próximo sprint). Por ahora loggeamos."
+
+archivos_nuevos:
+  - "backend/src/megarepartos/api/publico.py"
+  - "backend/src/megarepartos/schemas/publico.py"
+  - "behaviors/link_publico.md"
+  - "frontend/src/pages/PublicoLink.tsx"
+  - "backend/tests/integration/test_publico_link.py"
+
+archivos_a_modificar:
+  - "backend/src/megarepartos/infra/auth.py"  # sign/verify_link_token
+  - "backend/src/megarepartos/main.py"  # mount router
+  - "backend/src/megarepartos/api/clientes.py"  # endpoint generar-link
+  - "frontend/src/App.tsx"  # ruta /c/:token
+
+depende_de:
+  - "TASK-011"
+
+notas: |
+  La página pública sigue las pautas mobile-first del SPEC 6.5 simplificadas
+  (botones >60x60px, mensaje grande, sin login). Cuando TASK-023 traiga el
+  template "confirmar pedido" con +/- por producto, esta página se expande.
+EOF
+)
+EOF

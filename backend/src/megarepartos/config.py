@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Si está vacía, `infra/geocoding.py` devuelve None y no llama a Google.
     google_maps_api_key: str | None = None
 
+    # ---- Frontend URL (para armar el link público del cliente) ----
+    frontend_base_url: str = "http://localhost:5173"
+
     @property
     def effective_database_url(self) -> str:
         """URL efectiva: Neon en prod si está, default si no."""

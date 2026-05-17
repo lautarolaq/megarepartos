@@ -18,6 +18,7 @@ from megarepartos.api import auth as auth_router
 from megarepartos.api import clientes as clientes_router
 from megarepartos.api import envases as envases_router
 from megarepartos.api import productos as productos_router
+from megarepartos.api import publico as publico_router
 from megarepartos.api import usuarios as usuarios_router
 from megarepartos.api import zonas as zonas_router
 from megarepartos.config import get_settings
@@ -79,6 +80,7 @@ app.include_router(envases_router.router)
 app.include_router(zonas_router.router)
 app.include_router(clientes_router.router)
 app.include_router(usuarios_router.router)
+app.include_router(publico_router.router)
 
 
 @app.exception_handler(ApiError)

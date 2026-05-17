@@ -4,6 +4,7 @@ import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
 import { EnvasesPage } from "@/pages/Envases";
 import { LoginPage } from "@/pages/Login";
 import { ProductosPage } from "@/pages/Productos";
+import { PublicoLinkPage } from "@/pages/PublicoLink";
 import { UsuariosPage } from "@/pages/Usuarios";
 import { ZonasPage } from "@/pages/Zonas";
 import { useAuthStore } from "@/stores/auth-store";
@@ -31,6 +32,7 @@ export default function App() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/c/:token" element={<PublicoLinkPage />} />
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route index element={<DashboardIndex />} />
         <Route path="productos" element={<ProductosPage />} />

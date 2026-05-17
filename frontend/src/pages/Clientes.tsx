@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Link2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Cliente {
@@ -49,6 +49,19 @@ export function ClientesPage() {
   const desactivarMut = useMutation({
     mutationFn: async (id: string) => api.delete(`/api/clientes/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["clientes"] }),
+  });
+
+  const generarLinkMut = useMutation({
+    mutationFn: async (id: string) => api.post<{ url: string }>(`/api/clientes/${id}/generar-link`),
+    onSuccess: async (resp) => {
+      const url = resp.data.url;
+      try {
+        await navigator.clipboard.writeText(url);
+        alert(`Link copiado al portapapeles:\n\n${url}`);
+      } catch {
+        alert(`Link generado:\n\n${url}\n\n(no se pudo copiar automático)`);
+      }
+    },
   });
 
   return (
@@ -108,17 +121,28 @@ export function ClientesPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     {c.activo && (
-                      <button
-                        type="button"
-                        className="text-rose-600 hover:text-rose-800"
-                        onClick={() => {
-                          if (confirm(`¿Desactivar a "${c.nombre_completo}"?`)) {
-                            desactivarMut.mutate(c.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          className="text-sky-600 hover:text-sky-800"
+                          title="Generar link público"
+                          onClick={() => generarLinkMut.mutate(c.id)}
+                        >
+                          <Link2 size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="text-rose-600 hover:text-rose-800"
+                          title="Desactivar"
+                          onClick={() => {
+                            if (confirm(`¿Desactivar a "${c.nombre_completo}"?`)) {
+                              desactivarMut.mutate(c.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
