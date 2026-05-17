@@ -240,11 +240,14 @@ async def authenticated_session(
     claims: Annotated[TokenClaims, Depends(current_claims)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> AsyncIterator[AsyncSession]:
-    """Sesión con tenant context seteado.
+    """Sesión con tenant context seteado + commit-on-success.
 
     Los routers de negocio dependen de esta dep en vez de `get_session`. RLS
     de Postgres usa los session vars `app.empresa_id` y `app.usuario_id` para
     filtrar; sin esta dep no hay aislamiento (regla CLAUDE.md Backend #1).
+
+    Si el endpoint termina sin excepción, commitea la transacción. Si levanta,
+    el commit no se ejecuta y `session.close()` rollbackea (en `get_session`).
     """
     await set_tenant_context(
         session,
@@ -252,6 +255,7 @@ async def authenticated_session(
         usuario_id=claims.sub,
     )
     yield session
+    await session.commit()
 
 
 def require_rol(*roles_permitidos: str) -> Callable[[TokenClaims], TokenClaims]:
