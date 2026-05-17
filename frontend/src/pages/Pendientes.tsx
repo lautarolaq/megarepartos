@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Send } from "lucide-react";
 import { useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 interface Pendiente {
   cliente_id: string;
@@ -89,7 +90,12 @@ export function PendientesPage() {
                   className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-slate-800">{p.cliente_nombre}</p>
+                    <RouterLink
+                      to={`/dashboard/clientes/${p.cliente_id}`}
+                      className="truncate font-semibold text-slate-800 hover:text-sky-600 hover:underline"
+                    >
+                      {p.cliente_nombre}
+                    </RouterLink>
                     <p className="text-xs text-slate-500">{p.cliente_telefono}</p>
                     <p className="mt-1 text-xs text-amber-700">
                       Link enviado: {formatearFecha(p.fecha_link)}

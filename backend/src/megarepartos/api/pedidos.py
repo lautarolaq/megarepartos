@@ -43,6 +43,7 @@ async def listar(
         int | None,
         Query(ge=1, le=365, description="Sólo pedidos de los últimos N días."),
     ] = None,
+    q: Annotated[str | None, Query(description="Buscar por nombre o teléfono del cliente.")] = None,
 ) -> PedidoListOut:
     """REQ-LINK-007: lista respuestas de clientes ordenadas por fecha desc."""
     rows, total = await listar_pedidos(
@@ -52,6 +53,7 @@ async def listar(
         offset=offset,
         accion=accion,
         desde_dias=desde_dias,
+        q=q,
     )
 
     items: list[PedidoOut] = []

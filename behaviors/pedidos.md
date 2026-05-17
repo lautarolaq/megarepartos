@@ -23,6 +23,8 @@ Defensa: RLS por `empresa_id` + filtro explícito en la query.
 `GET /api/pedidos` acepta query params opcionales:
 - `accion`: `"confirmo"` o `"rechazo"` — filtra por la acción del cliente.
 - `desde_dias`: 1..365 — sólo pedidos de los últimos N días (rolling).
+- `q`: substring case-insensitive — busca en `cliente_nombre` y
+  `cliente_telefono` (ILIKE %q%).
 
 ### REQ-PED-004
 `GET /api/pedidos/stats` (admin) devuelve `{pedidos_hoy, confirmados_hoy,
