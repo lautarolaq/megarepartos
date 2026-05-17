@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Download, MessageSquare, Send, X } from "lucide-react";
+import { Check, Download, MessageSquare, Printer, Send, X } from "lucide-react";
 import { useState } from "react";
 
 interface ProductoPedido {
@@ -95,15 +95,26 @@ export function PedidosPage() {
             Respuestas de los clientes que recibieron tu link por WhatsApp.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={exportarCsv}
-          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-          title="Exportar a CSV (para imprimir o pegar en hoja de ruta)"
-        >
-          <Download size={14} />
-          Exportar CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            title="Imprimir hoja de ruta"
+          >
+            <Printer size={14} />
+            Imprimir
+          </button>
+          <button
+            type="button"
+            onClick={exportarCsv}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            title="Exportar a CSV (para imprimir o pegar en hoja de ruta)"
+          >
+            <Download size={14} />
+            Exportar CSV
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">

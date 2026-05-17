@@ -7,3 +7,19 @@ body,
 #root {
   height: 100%;
 }
+
+@media print {
+  /* Ocultar nav del dashboard al imprimir — la sodería sólo necesita la hoja. */
+  aside,
+  button[type="button"],
+  .no-print {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  body {
+    background: white !important;
+  }
+}
