@@ -12,6 +12,7 @@ interface Cliente {
   telefono: string;
   email: string | null;
   direccion: string | null;
+  zona_id: string | null;
   modalidad: string;
   condicion_pago: string;
   activo: boolean;
@@ -24,6 +25,14 @@ interface ClienteListResp {
   offset: number;
 }
 
+interface Zona {
+  id: string;
+  nombre: string;
+  dia_visita: string | null;
+  color_display: string | null;
+  activo: boolean;
+}
+
 interface LinkGenerado {
   cliente: Cliente;
   url: string;
@@ -33,6 +42,7 @@ export function ClientesPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
+  const [zonaFiltro, setZonaFiltro] = useState<string>("");
   const [openCreate, setOpenCreate] = useState(false);
   const [clienteHabituales, setClienteHabituales] = useState<Cliente | null>(null);
   const [linkGenerado, setLinkGenerado] = useState<LinkGenerado | null>(null);
@@ -44,12 +54,20 @@ export function ClientesPage() {
     return () => clearTimeout(t);
   }, [q]);
 
+  const { data: zonasData } = useQuery({
+    queryKey: ["zonas"],
+    queryFn: async (): Promise<{ items: Zona[] }> => (await api.get("/api/zonas")).data,
+  });
+
+  const zonasMap = new Map((zonasData?.items ?? []).map((z) => [z.id, z]));
+
   const { data, isLoading } = useQuery({
-    queryKey: ["clientes", qDebounced],
+    queryKey: ["clientes", qDebounced, zonaFiltro],
     queryFn: async (): Promise<ClienteListResp> => {
-      const resp = await api.get<ClienteListResp>("/api/clientes", {
-        params: qDebounced ? { q: qDebounced, limit: 100 } : { limit: 100 },
-      });
+      const params: Record<string, string | number> = { limit: 100 };
+      if (qDebounced) params.q = qDebounced;
+      if (zonaFiltro) params.zona_id = zonaFiltro;
+      const resp = await api.get<ClienteListResp>("/api/clientes", { params });
       return resp.data;
     },
   });
@@ -74,12 +92,26 @@ export function ClientesPage() {
         <Button onClick={() => setOpenCreate(true)}>+ Nuevo cliente</Button>
       </div>
 
-      <div className="mt-4 max-w-md">
-        <Input
-          placeholder="Buscar por nombre o teléfono…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="min-w-[16rem] flex-1 max-w-md">
+          <Input
+            placeholder="Buscar por nombre o teléfono…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <select
+          value={zonaFiltro}
+          onChange={(e) => setZonaFiltro(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+        >
+          <option value="">Todas las zonas</option>
+          {(zonasData?.items ?? []).map((z) => (
+            <option key={z.id} value={z.id}>
+              {z.nombre}
+            </option>
+          ))}
+        </select>
       </div>
 
       {isLoading && <p className="mt-4 text-slate-500">Buscando…</p>}
@@ -94,6 +126,7 @@ export function ClientesPage() {
                 <th className="px-4 py-2">Nombre</th>
                 <th className="px-4 py-2">Teléfono</th>
                 <th className="px-4 py-2">Dirección</th>
+                <th className="px-4 py-2">Zona</th>
                 <th className="px-4 py-2">Modalidad</th>
                 <th className="px-4 py-2">Estado</th>
                 <th className="px-4 py-2" />
@@ -102,8 +135,10 @@ export function ClientesPage() {
             <tbody>
               {data.items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
-                    {qDebounced ? "Sin resultados." : "No hay clientes todavía."}
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                    {qDebounced || zonaFiltro
+                      ? "Sin resultados."
+                      : "No hay clientes todavía."}
                   </td>
                 </tr>
               )}
@@ -112,6 +147,9 @@ export function ClientesPage() {
                   <td className="px-4 py-2 font-medium">{c.nombre_completo}</td>
                   <td className="px-4 py-2 text-slate-600">{c.telefono}</td>
                   <td className="px-4 py-2 text-slate-600">{c.direccion ?? "—"}</td>
+                  <td className="px-4 py-2 text-slate-600">
+                    {c.zona_id ? (zonasMap.get(c.zona_id)?.nombre ?? "—") : "—"}
+                  </td>
                   <td className="px-4 py-2 capitalize">{c.modalidad}</td>
                   <td className="px-4 py-2">
                     <span
@@ -197,14 +235,22 @@ function EditarClienteModal({
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [zonaId, setZonaId] = useState("");
   const [modalidad, setModalidad] = useState<"fijo" | "consulta" | "demanda">("consulta");
   const [error, setError] = useState<string | null>(null);
+
+  const { data: zonasData } = useQuery({
+    queryKey: ["zonas"],
+    queryFn: async (): Promise<{ items: Zona[] }> => (await api.get("/api/zonas")).data,
+    enabled: !!cliente,
+  });
 
   useEffect(() => {
     if (cliente) {
       setNombre(cliente.nombre_completo);
       setTelefono(cliente.telefono);
       setDireccion(cliente.direccion ?? "");
+      setZonaId(cliente.zona_id ?? "");
       setModalidad((cliente.modalidad as "fijo" | "consulta" | "demanda") ?? "consulta");
       setError(null);
     }
@@ -216,6 +262,7 @@ function EditarClienteModal({
         nombre_completo: nombre,
         telefono,
         direccion: direccion || null,
+        zona_id: zonaId || null,
         modalidad,
       }),
     onSuccess: () => {
@@ -249,6 +296,21 @@ function EditarClienteModal({
           value={direccion}
           onChange={(e) => setDireccion(e.target.value)}
         />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">Zona</span>
+          <select
+            value={zonaId}
+            onChange={(e) => setZonaId(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="">Sin zona</option>
+            {(zonasData?.items ?? []).map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-slate-700">Modalidad</span>
           <select
@@ -536,8 +598,15 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [zonaId, setZonaId] = useState("");
   const [modalidad, setModalidad] = useState<"fijo" | "consulta" | "demanda">("consulta");
   const [error, setError] = useState<string | null>(null);
+
+  const { data: zonasData } = useQuery({
+    queryKey: ["zonas"],
+    queryFn: async (): Promise<{ items: Zona[] }> => (await api.get("/api/zonas")).data,
+    enabled: open,
+  });
 
   const crear = useMutation({
     mutationFn: async () =>
@@ -545,6 +614,7 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
         nombre_completo: nombre,
         telefono,
         direccion: direccion || null,
+        zona_id: zonaId || null,
         modalidad,
       }),
     onSuccess: () => {
@@ -552,6 +622,7 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
       setNombre("");
       setTelefono("");
       setDireccion("");
+      setZonaId("");
       setModalidad("consulta");
       setError(null);
       onClose();
@@ -586,6 +657,21 @@ function CrearClienteModal({ open, onClose }: { open: boolean; onClose: () => vo
           onChange={(e) => setDireccion(e.target.value)}
           placeholder="Av. Colón 123"
         />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">Zona</span>
+          <select
+            value={zonaId}
+            onChange={(e) => setZonaId(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="">Sin zona</option>
+            {(zonasData?.items ?? []).map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-slate-700">Modalidad</span>
           <select
