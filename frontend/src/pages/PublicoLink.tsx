@@ -266,21 +266,23 @@ export function PublicoLinkPage() {
 
 function Counter({ value, onChange }: { value: number; onChange: (d: number) => void }) {
   return (
-    <div className="mt-1 flex items-center gap-3">
+    <div className="mt-2 flex items-center gap-4">
       <button
         type="button"
         onClick={() => onChange(-1)}
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-2xl font-semibold text-slate-700 active:bg-slate-300"
+        aria-label="Restar uno"
+        className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-slate-200 text-3xl font-semibold text-slate-700 active:bg-slate-300"
       >
         −
       </button>
-      <span className="min-w-[2ch] text-center text-2xl font-semibold tabular-nums text-slate-800">
+      <span className="min-w-[2ch] text-center text-3xl font-semibold tabular-nums text-slate-800">
         {value}
       </span>
       <button
         type="button"
         onClick={() => onChange(1)}
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-2xl font-semibold text-sky-700 active:bg-sky-200"
+        aria-label="Sumar uno"
+        className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-sky-100 text-3xl font-semibold text-sky-700 active:bg-sky-200"
       >
         +
       </button>

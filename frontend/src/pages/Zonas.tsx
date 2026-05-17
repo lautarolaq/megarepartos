@@ -52,71 +52,73 @@ export function ZonasPage() {
         />
       )}
       {data && data.items.length > 0 && (
-        <table className="mt-6 w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-2">Nombre</th>
-              <th className="px-4 py-2">Día de visita</th>
-              <th className="px-4 py-2">Camioneta</th>
-              <th className="px-4 py-2">Color</th>
-              <th className="px-4 py-2">Estado</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((z) => (
-              <tr key={z.id} className="border-t border-slate-200">
-                <td className="px-4 py-2 font-medium">{z.nombre}</td>
-                <td className="px-4 py-2 capitalize">{z.dia_visita ?? "—"}</td>
-                <td className="px-4 py-2">{z.camioneta_asignada ?? "—"}</td>
-                <td className="px-4 py-2">
-                  {z.color_display ? (
-                    <span
-                      className="inline-block h-4 w-4 rounded-full border border-slate-200"
-                      style={{ backgroundColor: z.color_display }}
-                      title={z.color_display}
-                    />
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      z.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {z.activo ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {z.activo && (
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        className="text-slate-600 hover:text-slate-800"
-                        title="Editar"
-                        onClick={() => setZonaEditar(z)}
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="text-rose-600 hover:text-rose-800"
-                        title="Desactivar"
-                        onClick={() => {
-                          if (confirm(`¿Desactivar "${z.nombre}"?`)) desactivarMut.mutate(z.id);
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  )}
-                </td>
+        <div className="mt-6 -mx-4 sm:mx-0 overflow-x-auto">
+          <table className="w-full min-w-[640px] sm:min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white text-sm sm:rounded-md">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-2">Nombre</th>
+                <th className="px-4 py-2">Día de visita</th>
+                <th className="px-4 py-2">Camioneta</th>
+                <th className="px-4 py-2">Color</th>
+                <th className="px-4 py-2">Estado</th>
+                <th className="px-4 py-2" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((z) => (
+                <tr key={z.id} className="border-t border-slate-200">
+                  <td className="px-4 py-2 font-medium">{z.nombre}</td>
+                  <td className="px-4 py-2 capitalize">{z.dia_visita ?? "—"}</td>
+                  <td className="px-4 py-2">{z.camioneta_asignada ?? "—"}</td>
+                  <td className="px-4 py-2">
+                    {z.color_display ? (
+                      <span
+                        className="inline-block h-4 w-4 rounded-full border border-slate-200"
+                        style={{ backgroundColor: z.color_display }}
+                        title={z.color_display}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        z.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {z.activo ? "Activo" : "Inactivo"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {z.activo && (
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          className="text-slate-600 hover:text-slate-800"
+                          title="Editar"
+                          onClick={() => setZonaEditar(z)}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="text-rose-600 hover:text-rose-800"
+                          title="Desactivar"
+                          onClick={() => {
+                            if (confirm(`¿Desactivar "${z.nombre}"?`)) desactivarMut.mutate(z.id);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <CrearZonaModal open={openCreate} onClose={() => setOpenCreate(false)} />

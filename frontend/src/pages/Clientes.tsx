@@ -154,111 +154,115 @@ export function ClientesPage() {
           <p className="mt-2 text-xs text-slate-500">
             {data.total} resultado{data.total === 1 ? "" : "s"}
           </p>
-          <table className="mt-2 w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2">Teléfono</th>
-                <th className="px-4 py-2">Dirección</th>
-                <th className="px-4 py-2">Zona</th>
-                <th className="px-4 py-2">Modalidad</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.length === 0 && (
+          <div className="mt-2 -mx-4 sm:mx-0 overflow-x-auto">
+            <table className="w-full min-w-[720px] sm:min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white text-sm sm:rounded-md">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                    {qDebounced || zonaFiltro ? "Sin resultados." : "No hay clientes todavía."}
-                  </td>
+                  <th className="px-4 py-2">Nombre</th>
+                  <th className="px-4 py-2">Teléfono</th>
+                  <th className="px-4 py-2">Dirección</th>
+                  <th className="px-4 py-2">Zona</th>
+                  <th className="px-4 py-2">Modalidad</th>
+                  <th className="px-4 py-2">Estado</th>
+                  <th className="px-4 py-2" />
                 </tr>
-              )}
-              {data.items.map((c) => (
-                <tr key={c.id} className="border-t border-slate-200">
-                  <td className="px-4 py-2 font-medium">
-                    <RouterLink
-                      to={`/dashboard/clientes/${c.id}`}
-                      className="text-slate-800 hover:text-sky-600 hover:underline"
-                    >
-                      {c.nombre_completo}
-                    </RouterLink>
-                  </td>
-                  <td className="px-4 py-2 text-slate-600">{c.telefono}</td>
-                  <td className="px-4 py-2 text-slate-600">{c.direccion ?? "—"}</td>
-                  <td className="px-4 py-2 text-slate-600">
-                    {c.zona_id ? (zonasMap.get(c.zona_id)?.nombre ?? "—") : "—"}
-                  </td>
-                  <td className="px-4 py-2 capitalize">{c.modalidad}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        c.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {c.activo ? "Activo" : "Inactivo"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {c.activo ? (
-                      <div className="flex justify-end gap-3">
-                        <button
-                          type="button"
-                          className="text-slate-600 hover:text-slate-800"
-                          title="Editar"
-                          onClick={() => setClienteEditar(c)}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className="text-slate-600 hover:text-slate-800"
-                          title="Productos habituales"
-                          onClick={() => setClienteHabituales(c)}
-                        >
-                          <Package size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className="text-sky-600 hover:text-sky-800"
-                          title="Enviar link por WhatsApp"
-                          onClick={() => generarLinkMut.mutate(c)}
-                          disabled={generarLinkMut.isPending}
-                        >
-                          <Link2 size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className="text-rose-600 hover:text-rose-800"
-                          title="Desactivar"
-                          onClick={() => {
-                            if (confirm(`¿Desactivar a "${c.nombre_completo}"?`)) {
-                              desactivarMut.mutate(c.id);
-                            }
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end gap-3">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-md border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          title="Reactivar cliente"
-                          onClick={() => reactivarMut.mutate(c.id)}
-                          disabled={reactivarMut.isPending}
-                        >
-                          <RotateCcw size={12} />
-                          Reactivar
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.items.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                      {qDebounced || zonaFiltro ? "Sin resultados." : "No hay clientes todavía."}
+                    </td>
+                  </tr>
+                )}
+                {data.items.map((c) => (
+                  <tr key={c.id} className="border-t border-slate-200">
+                    <td className="px-4 py-2 font-medium">
+                      <RouterLink
+                        to={`/dashboard/clientes/${c.id}`}
+                        className="text-slate-800 hover:text-sky-600 hover:underline"
+                      >
+                        {c.nombre_completo}
+                      </RouterLink>
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">{c.telefono}</td>
+                    <td className="px-4 py-2 text-slate-600">{c.direccion ?? "—"}</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {c.zona_id ? (zonasMap.get(c.zona_id)?.nombre ?? "—") : "—"}
+                    </td>
+                    <td className="px-4 py-2 capitalize">{c.modalidad}</td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          c.activo
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {c.activo ? "Activo" : "Inactivo"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {c.activo ? (
+                        <div className="flex justify-end gap-3">
+                          <button
+                            type="button"
+                            className="text-slate-600 hover:text-slate-800"
+                            title="Editar"
+                            onClick={() => setClienteEditar(c)}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-slate-600 hover:text-slate-800"
+                            title="Productos habituales"
+                            onClick={() => setClienteHabituales(c)}
+                          >
+                            <Package size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-sky-600 hover:text-sky-800"
+                            title="Enviar link por WhatsApp"
+                            onClick={() => generarLinkMut.mutate(c)}
+                            disabled={generarLinkMut.isPending}
+                          >
+                            <Link2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-rose-600 hover:text-rose-800"
+                            title="Desactivar"
+                            onClick={() => {
+                              if (confirm(`¿Desactivar a "${c.nombre_completo}"?`)) {
+                                desactivarMut.mutate(c.id);
+                              }
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-3">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-md border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                            title="Reactivar cliente"
+                            onClick={() => reactivarMut.mutate(c.id)}
+                            disabled={reactivarMut.isPending}
+                          >
+                            <RotateCcw size={12} />
+                            Reactivar
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
