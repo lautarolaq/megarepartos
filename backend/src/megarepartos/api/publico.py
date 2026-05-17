@@ -22,12 +22,14 @@ from megarepartos.infra.auth import verify_link_token
 from megarepartos.infra.db import get_session
 from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.infra.logging import get_logger
-from megarepartos.models.cliente import Cliente
+from megarepartos.models.cliente import Cliente, ProductoHabitual
 from megarepartos.models.empresa import Empresa
+from megarepartos.models.producto import Producto
 from megarepartos.schemas.publico import (
     ClientePublico,
     EmpresaPublica,
     LinkPublicoOut,
+    ProductoHabitualPublico,
     RespuestaIn,
 )
 
@@ -69,9 +71,35 @@ async def info_link(
         await session.execute(select(Empresa).where(Empresa.id == cliente.empresa_id))
     ).scalar_one()
 
+    # Productos habituales del cliente — orden alfabético.
+    habituales_rows = (
+        await session.execute(
+            select(
+                ProductoHabitual.producto_id,
+                ProductoHabitual.cantidad,
+                Producto.nombre,
+                Producto.es_retornable,
+            )
+            .join(Producto, Producto.id == ProductoHabitual.producto_id)
+            .where(ProductoHabitual.cliente_id == cliente_id, Producto.activo.is_(True))
+            .order_by(Producto.nombre.asc())
+        )
+    ).all()
+
+    productos_habituales = [
+        ProductoHabitualPublico(
+            producto_id=str(row[0]),
+            cantidad_habitual=row[1],
+            nombre=row[2],
+            es_retornable=row[3],
+        )
+        for row in habituales_rows
+    ]
+
     return LinkPublicoOut(
         empresa=EmpresaPublica.model_validate(empresa),
         cliente=ClientePublico.model_validate(cliente),
+        productos_habituales=productos_habituales,
     )
 
 
@@ -104,7 +132,8 @@ async def registrar_respuesta(
         cliente_id=str(cliente_id),
         empresa_id=str(row),
         accion=payload.accion,
-        datos_size=len(payload.datos),
+        productos=[p.model_dump() for p in payload.productos],
+        observacion=payload.observacion,
     )
 
     return {"ok": True}
