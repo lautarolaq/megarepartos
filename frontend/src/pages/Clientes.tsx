@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Package, Pencil, Trash2 } from "lucide-react";
+import { Link2, Package, Pencil, Send, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Cliente {
@@ -47,6 +47,7 @@ export function ClientesPage() {
   const [clienteHabituales, setClienteHabituales] = useState<Cliente | null>(null);
   const [linkGenerado, setLinkGenerado] = useState<LinkGenerado | null>(null);
   const [clienteEditar, setClienteEditar] = useState<Cliente | null>(null);
+  const [openCampana, setOpenCampana] = useState(false);
 
   // Debounce simple sin librería: 300ms.
   useEffect(() => {
@@ -89,7 +90,13 @@ export function ClientesPage() {
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold tracking-tight">Clientes</h2>
-        <Button onClick={() => setOpenCreate(true)}>+ Nuevo cliente</Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setOpenCampana(true)}>
+            <Send size={14} />
+            Campaña
+          </Button>
+          <Button onClick={() => setOpenCreate(true)}>+ Nuevo cliente</Button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -220,7 +227,186 @@ export function ClientesPage() {
         cliente={clienteEditar}
         onClose={() => setClienteEditar(null)}
       />
+      <CampanaModal
+        open={openCampana}
+        zonaIdInicial={zonaFiltro}
+        zonas={zonasData?.items ?? []}
+        onClose={() => setOpenCampana(false)}
+      />
     </div>
+  );
+}
+
+interface LinkBulkItem {
+  cliente_id: string;
+  nombre_completo: string;
+  telefono: string;
+  url: string;
+}
+
+function CampanaModal({
+  open,
+  zonaIdInicial,
+  zonas,
+  onClose,
+}: {
+  open: boolean;
+  zonaIdInicial: string;
+  zonas: Zona[];
+  onClose: () => void;
+}) {
+  const [zonaId, setZonaId] = useState(zonaIdInicial);
+  const [items, setItems] = useState<LinkBulkItem[] | null>(null);
+  const [enviados, setEnviados] = useState<Set<string>>(new Set());
+  const [mensaje, setMensaje] = useState(
+    "Hola {nombre}! Mañana pasamos por tu zona. Confirmá tu pedido en este link:\n\n{link}"
+  );
+
+  useEffect(() => {
+    if (open) {
+      setZonaId(zonaIdInicial);
+      setItems(null);
+      setEnviados(new Set());
+    }
+  }, [open, zonaIdInicial]);
+
+  const generar = useMutation({
+    mutationFn: async () => {
+      const body: { zona_id?: string } = {};
+      if (zonaId) body.zona_id = zonaId;
+      const resp = await api.post<{ items: LinkBulkItem[] }>(
+        "/api/clientes/generar-links-bulk",
+        body
+      );
+      return resp.data.items;
+    },
+    onSuccess: (data) => {
+      setItems(data);
+      setEnviados(new Set());
+    },
+  });
+
+  function mensajeFor(item: LinkBulkItem): string {
+    const primer = item.nombre_completo.split(" ")[0];
+    return mensaje.replace(/\{nombre\}/g, primer).replace(/\{link\}/g, item.url);
+  }
+
+  function waUrl(item: LinkBulkItem): string {
+    const tel = item.telefono.replace(/\D/g, "");
+    return `https://wa.me/${tel}?text=${encodeURIComponent(mensajeFor(item))}`;
+  }
+
+  function marcarEnviado(id: string) {
+    setEnviados((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Campaña — enviar a varios">
+      <div className="flex flex-col gap-3">
+        {!items && (
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-slate-700">Zona</span>
+              <select
+                value={zonaId}
+                onChange={(e) => setZonaId(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              >
+                <option value="">Todas las zonas (todos los clientes activos)</option>
+                {zonas.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-slate-700">
+                Mensaje (usá {"{nombre}"} y {"{link}"})
+              </span>
+              <textarea
+                rows={4}
+                value={mensaje}
+                onChange={(e) => setMensaje(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </label>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => generar.mutate()}
+                disabled={generar.isPending}
+              >
+                {generar.isPending ? "Generando…" : "Generar links"}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {items && (
+          <>
+            <p className="text-sm text-slate-600">
+              Tocá <strong>Enviar</strong> para abrir WhatsApp con el chat y el mensaje listo.
+              Marcá los que ya enviaste para no perderte ninguno.
+            </p>
+            <p className="text-xs text-slate-500">
+              {enviados.size} / {items.length} enviados
+            </p>
+
+            {items.length === 0 && (
+              <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-500">
+                No hay clientes activos en este filtro.
+              </p>
+            )}
+
+            <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+              {items.map((it) => {
+                const enviado = enviados.has(it.cliente_id);
+                return (
+                  <li
+                    key={it.cliente_id}
+                    className={`flex items-center justify-between gap-2 rounded-md border px-3 py-2 ${
+                      enviado
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-700">
+                        {it.nombre_completo}
+                      </p>
+                      <p className="text-xs text-slate-500">{it.telefono}</p>
+                    </div>
+                    <a
+                      href={waUrl(it)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => marcarEnviado(it.cliente_id)}
+                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                    >
+                      {enviado ? "✓ Enviado" : "Enviar"}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="mt-2 flex justify-between">
+              <Button variant="ghost" onClick={() => setItems(null)}>
+                ← Volver
+              </Button>
+              <Button onClick={onClose}>Cerrar</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 

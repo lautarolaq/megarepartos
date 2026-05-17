@@ -434,3 +434,65 @@ async def test_REQ_CLI_012_delete_soft_idempotente(
     # Verificar en DB que activo=False.
     en_db = (await db_session.execute(select(Cliente).where(Cliente.id == cliente.id))).scalar_one()
     assert en_db.activo is False
+
+
+@pytest.mark.integration
+async def test_generar_links_bulk(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    """Bulk endpoint: devuelve links sólo para clientes activos de la empresa."""
+    empresa, admin = await _seed_admin(db_session)
+    activo1 = await make_cliente(db_session, empresa=empresa, nombre_completo="A")
+    activo2 = await make_cliente(db_session, empresa=empresa, nombre_completo="B")
+    inactivo = await make_cliente(db_session, empresa=empresa, nombre_completo="C")
+    inactivo.activo = False
+    await db_session.flush()
+
+    headers = {
+        "Authorization": f"Bearer {_token(settings, usuario_id=admin.id, empresa_id=empresa.id)}"
+    }
+    resp = await app_client.post(
+        "/api/clientes/generar-links-bulk", headers=headers, json={}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    ids = sorted(item["cliente_id"] for item in body["items"])
+    assert ids == sorted([str(activo1.id), str(activo2.id)])
+    for item in body["items"]:
+        assert item["url"].startswith("http")
+        assert "/c/" in item["url"]
+
+
+@pytest.mark.integration
+async def test_generar_links_bulk_filtra_zona(
+    app_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    _override_settings: None,
+) -> None:
+    empresa, admin = await _seed_admin(db_session)
+    zona = Zona(empresa_id=empresa.id, nombre="Norte")
+    db_session.add(zona)
+    await db_session.flush()
+    en_zona = await make_cliente(db_session, empresa=empresa, nombre_completo="Norte 1")
+    en_zona.zona_id = zona.id
+    fuera = await make_cliente(db_session, empresa=empresa, nombre_completo="Sin zona")
+    await db_session.flush()
+
+    headers = {
+        "Authorization": f"Bearer {_token(settings, usuario_id=admin.id, empresa_id=empresa.id)}"
+    }
+    resp = await app_client.post(
+        "/api/clientes/generar-links-bulk",
+        headers=headers,
+        json={"zona_id": str(zona.id)},
+    )
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["cliente_id"] == str(en_zona.id)
+    # `fuera` no aparece — pero es válido confirmar que existía
+    assert fuera.id != en_zona.id
