@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { Check, MessageSquare, Send, X } from "lucide-react";
+import { Check, Download, MessageSquare, Send, X } from "lucide-react";
 import { useState } from "react";
 
 interface ProductoPedido {
@@ -65,13 +65,45 @@ export function PedidosPage() {
     refetchInterval: 30_000,
   });
 
+  async function exportarCsv() {
+    const params: Record<string, string | number> = {};
+    if (filtroAccion !== "todos") params.accion = filtroAccion;
+    else params.accion = "confirmo";
+    const dias = FECHA_DIAS[filtroFecha];
+    if (dias !== null) params.desde_dias = dias;
+    const resp = await api.get<Blob>("/api/pedidos/export.csv", {
+      params,
+      responseType: "blob",
+    });
+    const url = URL.createObjectURL(resp.data);
+    const a = document.createElement("a");
+    a.href = url;
+    const fecha = new Date().toISOString().slice(0, 10);
+    a.download = `pedidos-${fecha}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Pedidos</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Respuestas de los clientes que recibieron tu link por WhatsApp.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Pedidos</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Respuestas de los clientes que recibieron tu link por WhatsApp.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={exportarCsv}
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          title="Exportar a CSV (para imprimir o pegar en hoja de ruta)"
+        >
+          <Download size={14} />
+          Exportar CSV
+        </button>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">

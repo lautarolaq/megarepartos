@@ -7,9 +7,12 @@ Backend #6: api/ no importa models/).
 
 from __future__ import annotations
 
+import csv
+import io
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.domain.pedidos import listar_pedidos, stats_pedidos
@@ -82,4 +85,71 @@ async def stats(claims: ClaimsDep, session: SessionDep) -> PedidoStatsOut:
         confirmados_hoy=s.confirmados_hoy,
         pedidos_semana=s.pedidos_semana,
         clientes_activos=s.clientes_activos,
+    )
+
+
+@router.get("/export.csv")
+async def export_csv(
+    claims: ClaimsDep,
+    session: SessionDep,
+    accion: Annotated[str | None, Query(description="'confirmo' o 'rechazo'")] = "confirmo",
+    desde_dias: Annotated[int | None, Query(ge=1, le=365)] = 7,
+) -> StreamingResponse:
+    """REQ-PED-005 (SPEC 6.7): exporta pedidos a CSV para imprimir o pegar en
+    la hoja de ruta. Default: confirmados de últimos 7 días.
+    """
+    rows, _ = await listar_pedidos(
+        session,
+        empresa_id=claims.empresa_id,
+        limit=10_000,
+        offset=0,
+        accion=accion,
+        desde_dias=desde_dias,
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "Cliente",
+            "Teléfono",
+            "Acción",
+            "Productos (llenos)",
+            "Envases vacíos a recibir",
+            "Observación",
+            "Fecha",
+        ]
+    )
+
+    for row in rows:
+        productos_raw = row.detalles.get("productos", []) or []
+        llenos = [
+            f"{int(p.get('cantidad_llenos', 0))} x {p.get('nombre', '')}"
+            for p in productos_raw
+            if int(p.get("cantidad_llenos", 0)) > 0
+        ]
+        vacios = [
+            f"{int(p.get('cantidad_vacios', 0))} x {p.get('nombre', '')}"
+            for p in productos_raw
+            if bool(p.get("es_retornable", False)) and int(p.get("cantidad_vacios", 0)) > 0
+        ]
+        writer.writerow(
+            [
+                row.cliente_nombre,
+                row.cliente_telefono,
+                row.detalles.get("accion", ""),
+                "; ".join(llenos),
+                "; ".join(vacios),
+                row.detalles.get("observacion") or "",
+                row.fecha.isoformat(),
+            ]
+        )
+
+    csv_content = buf.getvalue()
+    buf.close()
+
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="pedidos.csv"'},
     )
