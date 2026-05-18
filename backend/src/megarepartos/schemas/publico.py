@@ -52,6 +52,9 @@ class RespuestaIn(BaseModel):
     productos: list[ProductoSolicitado] = []
     observacion: str | None = None
     datos: dict[str, Any] = {}
+    # Opcional: si la respuesta viene desde una campaña (broadcast o bulk
+    # individual), el frontend manda el campana_id para taggear el evento.
+    campana_id: str | None = None
 
 
 class GenerarLinkOut(BaseModel):
@@ -79,13 +82,25 @@ class GenerarLinksBulkIn(BaseModel):
     """
 
     zona_id: str | None = None
+    # Opcionales: label + mensaje snapshot para la campaña asociada.
+    nombre: str | None = None
+    mensaje: str | None = None
 
 
 class GenerarLinksBulkOut(BaseModel):
     items: list[LinkBulkItem]
+    campana_id: str | None = None
 
 
 # Broadcast -----------------------------------------------------------------
+
+
+class GenerarLinkBroadcastIn(BaseModel):
+    """Body de `POST /api/clientes/generar-link-broadcast` (admin)."""
+
+    nombre: str  # Label de la campaña para el sodero ("Miércoles zona norte 22/05")
+    mensaje: str  # Snapshot del mensaje (con {link} si quiere embed)
+    zona_id: str | None = None  # Filtro opcional para anotar la campaña
 
 
 class GenerarLinkBroadcastOut(BaseModel):
@@ -94,6 +109,7 @@ class GenerarLinkBroadcastOut(BaseModel):
     url: str
     token: str
     expira_en_dias: int
+    campana_id: str
 
 
 class IdentificarBroadcastIn(BaseModel):
@@ -103,10 +119,11 @@ class IdentificarBroadcastIn(BaseModel):
 
 
 class IdentificarBroadcastOut(BaseModel):
-    """Respuesta — devuelve datos del cliente Y un token personal de corta
-    duración para que la landing pueda hacer el POST de respuesta usando el
-    flujo existente `/api/publico/c/{token}/respuesta`.
+    """Respuesta — devuelve datos del cliente, un token personal de corta
+    duración y el `campana_id` para que el frontend pueda taggear la respuesta
+    cuando la postee a `/api/publico/c/{token}/respuesta`.
     """
 
     cliente_token: str
+    campana_id: str
     info: LinkPublicoOut

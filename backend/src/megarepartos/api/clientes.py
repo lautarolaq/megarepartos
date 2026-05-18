@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.config import Settings, get_settings
+from megarepartos.domain.campanas import crear_campana
 from megarepartos.domain.clientes import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
@@ -46,6 +47,7 @@ from megarepartos.schemas.cliente import (
 )
 from megarepartos.schemas.pedido import HistorialClienteOut, HistorialEventoOut
 from megarepartos.schemas.publico import (
+    GenerarLinkBroadcastIn,
     GenerarLinkBroadcastOut,
     GenerarLinkOut,
     GenerarLinksBulkIn,
@@ -244,8 +246,10 @@ async def generar_links_bulk(
     settings: SettingsDep,
 ) -> GenerarLinksBulkOut:
     """Genera links públicos para todos los clientes activos (opcionalmente
-    filtrados por zona). Útil para campañas masivas — el admin ve la lista
-    y va abriendo WhatsApp uno a uno.
+    filtrados por zona). Además, persiste una `Campana` con `tipo_envio =
+    bulk_individual` para que las respuestas queden agrupadas en la página
+    `/dashboard/campanas`. Las URLs llevan `?campana={id}` para que la
+    landing pueda taggear la respuesta.
     """
     zona_id: uuid.UUID | None = None
     if payload.zona_id:
@@ -253,6 +257,16 @@ async def generar_links_bulk(
             zona_id = uuid.UUID(payload.zona_id)
         except ValueError:
             raise ApiError(ErrorCode.VALIDACION_INPUT, "zona_id inválido.") from None
+
+    campana = await crear_campana(
+        session,
+        empresa_id=admin_claims.empresa_id,
+        usuario_id=admin_claims.sub,
+        nombre=payload.nombre or _default_campana_nombre("Bulk", zona_id),
+        tipo_envio="bulk_individual",
+        zona_id=zona_id,
+        mensaje=payload.mensaje or "",
+    )
 
     clientes = await listar_clientes_para_links(
         session, empresa_id=admin_claims.empresa_id, zona_id=zona_id
@@ -264,34 +278,65 @@ async def generar_links_bulk(
             empresa_id=admin_claims.empresa_id,
             usuario_id=admin_claims.sub,
             cliente_id=c.id,
+            campana_id=campana.id,
         )
+        cliente_token = sign_link_token(settings, cliente_id=c.id)
         items.append(
             LinkBulkItem(
                 cliente_id=str(c.id),
                 nombre_completo=c.nombre_completo,
                 telefono=c.telefono,
-                url=f"{settings.frontend_base_url}/c/{sign_link_token(settings, cliente_id=c.id)}",
+                url=f"{settings.frontend_base_url}/c/{cliente_token}?campana={campana.id}",
             )
         )
-    return GenerarLinksBulkOut(items=items)
+    return GenerarLinksBulkOut(items=items, campana_id=str(campana.id))
+
+
+def _default_campana_nombre(prefix: str, zona_id: uuid.UUID | None) -> str:
+    """Fallback: si el sodero no puso nombre, generamos uno automático con la
+    fecha y opcionalmente la zona."""
+    from datetime import datetime
+
+    today = datetime.now().strftime("%d/%m")
+    zona = " (con zona)" if zona_id else ""
+    return f"{prefix} {today}{zona}"
 
 
 @router.post("/generar-link-broadcast", response_model=GenerarLinkBroadcastOut)
 async def generar_link_broadcast(
+    payload: GenerarLinkBroadcastIn,
     admin_claims: AdminDep,
+    session: SessionDep,
     settings: SettingsDep,
 ) -> GenerarLinkBroadcastOut:
-    """Genera UN link genérico de broadcast para la empresa del admin.
-
-    El admin lo pega en su WhatsApp Web junto con el mensaje, lo manda a una
-    Broadcast List, y los destinatarios entran al link, tipean su teléfono y
-    se identifican contra el padrón de clientes.
+    """Crea una campaña broadcast + genera UN link genérico firmado con el
+    campana_id. El admin lo pega en su WhatsApp Web junto con el mensaje, lo
+    manda a una Broadcast List, los destinatarios entran al link, tipean su
+    teléfono y se identifican. Cada confirmación queda taggeada con esta
+    campaña → visible/filtrable en `/dashboard/campanas`.
     """
-    token = sign_broadcast_token(settings, empresa_id=admin_claims.empresa_id)
+    zona_id: uuid.UUID | None = None
+    if payload.zona_id:
+        try:
+            zona_id = uuid.UUID(payload.zona_id)
+        except ValueError:
+            raise ApiError(ErrorCode.VALIDACION_INPUT, "zona_id inválido.") from None
+
+    campana = await crear_campana(
+        session,
+        empresa_id=admin_claims.empresa_id,
+        usuario_id=admin_claims.sub,
+        nombre=payload.nombre,
+        tipo_envio="broadcast",
+        zona_id=zona_id,
+        mensaje=payload.mensaje,
+    )
+    token = sign_broadcast_token(settings, campana_id=campana.id)
     return GenerarLinkBroadcastOut(
         url=f"{settings.frontend_base_url}/b/{token}",
         token=token,
         expira_en_dias=BROADCAST_TOKEN_DEFAULT_TTL_SECONDS // (24 * 60 * 60),
+        campana_id=str(campana.id),
     )
 
 

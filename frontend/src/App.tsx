@@ -1,5 +1,6 @@
 import { AuthCallbackPage } from "@/pages/AuthCallback";
 import { BroadcastLandingPage } from "@/pages/BroadcastLanding";
+import { CampanaDetallePage, CampanasPage } from "@/pages/Campanas";
 import { ClienteDetallePage } from "@/pages/ClienteDetalle";
 import { ClientesPage } from "@/pages/Clientes";
 import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
@@ -48,6 +49,8 @@ export default function App() {
         <Route path="zonas" element={<ZonasPage />} />
         <Route path="clientes" element={<ClientesPage />} />
         <Route path="clientes/:id" element={<ClienteDetallePage />} />
+        <Route path="campanas" element={<CampanasPage />} />
+        <Route path="campanas/:id" element={<CampanaDetallePage />} />
         <Route path="usuarios" element={<UsuariosPage />} />
         <Route path="empresa" element={<EmpresaPage />} />
       </Route>

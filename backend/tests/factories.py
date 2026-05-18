@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from megarepartos.models.campana import Campana
 from megarepartos.models.cliente import Cliente
 from megarepartos.models.empresa import Empresa
 from megarepartos.models.producto import Producto
@@ -97,3 +98,33 @@ async def make_producto(
     session.add(producto)
     await session.flush()
     return producto
+
+
+async def make_campana(
+    session: AsyncSession,
+    *,
+    empresa: Empresa,
+    usuario: Usuario,
+    **overrides: Any,
+) -> Campana:
+    """Crea una campaña en estado enviada con tipo_envio=broadcast por default.
+    El caller debe haber seteado el tenant context a la empresa.
+    """
+    defaults: dict[str, Any] = {
+        "empresa_id": empresa.id,
+        "usuario_creador_id": usuario.id,
+        "nombre": f"Campaña {uuid.uuid4().hex[:6]}",
+        "tipo": "consulta",
+        "template_mensaje_id": None,
+        "estado": "enviada",
+        "destinatarios_origen": {
+            "tipo_envio": "broadcast",
+            "zona_id": None,
+            "mensaje": "Hola {link}",
+        },
+    }
+    defaults.update(overrides)
+    campana = Campana(**defaults)
+    session.add(campana)
+    await session.flush()
+    return campana

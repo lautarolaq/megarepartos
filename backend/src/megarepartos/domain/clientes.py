@@ -419,9 +419,12 @@ async def registrar_link_generado(
     empresa_id: uuid.UUID,
     usuario_id: uuid.UUID,
     cliente_id: uuid.UUID,
+    campana_id: uuid.UUID | None = None,
 ) -> None:
     """Persiste un evento `cliente.link_generado` — base de la vista Pendientes
     (SPEC 6.9). Llamado tanto por generar-link como por generar-links-bulk.
+    Si viene `campana_id`, se persiste en detalles para poder cruzar pendientes
+    con la campaña de origen.
     """
     async with event_recorder(
         session,
@@ -431,3 +434,5 @@ async def registrar_link_generado(
         accion="link_generado",
     ) as ev:
         ev.entidad_id = cliente_id
+        if campana_id is not None:
+            ev.detalles["campana_id"] = str(campana_id)

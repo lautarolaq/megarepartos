@@ -25,8 +25,10 @@ class Campana(Base):
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     # consulta | aviso | cobranza | encuesta
     tipo: Mapped[str] = mapped_column(String(16), nullable=False)
-    template_mensaje_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("template_mensaje.id", ondelete="RESTRICT"), nullable=False
+    # Nullable: las campañas de broadcast / bulk-individual no usan plantillas
+    # guardadas — el mensaje vive en `destinatarios_origen.mensaje`.
+    template_mensaje_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("template_mensaje.id", ondelete="RESTRICT"), nullable=True
     )
     template_formulario_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("template_formulario.id", ondelete="RESTRICT"), nullable=True

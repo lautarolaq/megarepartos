@@ -40,10 +40,10 @@ def settings() -> Settings:
 
 @pytest.mark.unit
 def test_sign_broadcast_token_roundtrip(settings: Settings) -> None:
-    empresa_id = uuid.uuid4()
-    token = sign_broadcast_token(settings, empresa_id=empresa_id)
+    campana_id = uuid.uuid4()
+    token = sign_broadcast_token(settings, campana_id=campana_id)
     parsed = verify_broadcast_token(settings, token)
-    assert parsed == empresa_id
+    assert parsed == campana_id
 
 
 @pytest.mark.unit
@@ -59,8 +59,8 @@ def test_broadcast_token_rechaza_link_token(settings: Settings) -> None:
 @pytest.mark.unit
 def test_link_token_rechaza_broadcast_token(settings: Settings) -> None:
     """Y vice-versa: un broadcast token no debe validar como link personal."""
-    empresa_id = uuid.uuid4()
-    broadcast_token = sign_broadcast_token(settings, empresa_id=empresa_id)
+    campana_id = uuid.uuid4()
+    broadcast_token = sign_broadcast_token(settings, campana_id=campana_id)
     with pytest.raises(ApiError) as exc:
         verify_link_token(settings, broadcast_token)
     assert exc.value.code == ErrorCode.VALIDACION_INPUT
@@ -68,8 +68,8 @@ def test_link_token_rechaza_broadcast_token(settings: Settings) -> None:
 
 @pytest.mark.unit
 def test_broadcast_token_expira(settings: Settings) -> None:
-    empresa_id = uuid.uuid4()
-    token = sign_broadcast_token(settings, empresa_id=empresa_id, ttl_seconds=-1)
+    campana_id = uuid.uuid4()
+    token = sign_broadcast_token(settings, campana_id=campana_id, ttl_seconds=-1)
     # Esperar 1s no es necesario porque ttl_seconds=-1 ya queda en el pasado.
     with pytest.raises(ApiError) as exc:
         verify_broadcast_token(settings, token)
@@ -79,8 +79,8 @@ def test_broadcast_token_expira(settings: Settings) -> None:
 
 @pytest.mark.unit
 def test_broadcast_token_firma_invalida(settings: Settings) -> None:
-    empresa_id = uuid.uuid4()
-    token = sign_broadcast_token(settings, empresa_id=empresa_id)
+    campana_id = uuid.uuid4()
+    token = sign_broadcast_token(settings, campana_id=campana_id)
     # Cambiar el último char
     tampered = token[:-1] + ("0" if token[-1] != "0" else "1")
     with pytest.raises(ApiError) as exc:

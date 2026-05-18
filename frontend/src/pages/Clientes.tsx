@@ -2,12 +2,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
-import {
-  getExtensionVersion,
-  isExtensionInstalled,
-  sendBroadcastViaExtension,
-  sendViaExtension,
-} from "@/lib/extension";
+import { getExtensionVersion, isExtensionInstalled, sendViaExtension } from "@/lib/extension";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Package, Pencil, RotateCcw, Send, Trash2, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -48,6 +43,13 @@ interface LinkGenerado {
 }
 
 type FiltroActivo = "activos" | "inactivos" | "todos";
+
+// Helper para auto-generar nombre de campaña si el sodero no puso uno.
+function defaultNombre(prefix: string, zonaId: string): string {
+  const today = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  const zona = zonaId ? " (zona)" : "";
+  return `${prefix} ${today}${zona}`;
+}
 
 export function ClientesPage() {
   const qc = useQueryClient();
@@ -325,15 +327,10 @@ function CampanaModal({
   const [modo, setModo] = useState<"individual" | "broadcast">("individual");
   const [broadcastUrl, setBroadcastUrl] = useState<string | null>(null);
   const [broadcastCopied, setBroadcastCopied] = useState<"link" | "mensaje" | null>(null);
-  // Nombre de la lista de difusión en WhatsApp Web (persistido en localStorage
-  // para auto-completar la próxima vez).
-  const [broadcastListName, setBroadcastListName] = useState<string>(
-    () => localStorage.getItem("mr_broadcast_list_name") ?? "",
-  );
-  const [broadcastAutoEnviando, setBroadcastAutoEnviando] = useState(false);
-  const [broadcastAutoResult, setBroadcastAutoResult] = useState<
-    { ok: true } | { ok: false; error: string } | null
-  >(null);
+  const [campanaNombre, setCampanaNombre] = useState<string>("");
+  // Web Share API: en mobile esto abre el share sheet nativo (WhatsApp aparece
+  // como destino). En desktop no está disponible — usamos copy/paste.
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   // Resetear estado SOLO cuando el modal se abre. Si incluimos mensajeBase en las
   // deps, la response de /api/empresa/me llegando después de "Generar links"
@@ -349,8 +346,7 @@ function CampanaModal({
       setModo("individual");
       setBroadcastUrl(null);
       setBroadcastCopied(null);
-      setBroadcastAutoEnviando(false);
-      setBroadcastAutoResult(null);
+      setCampanaNombre("");
     }
   }, [open, zonaIdInicial]);
 
@@ -362,8 +358,10 @@ function CampanaModal({
 
   const generar = useMutation({
     mutationFn: async () => {
-      const body: { zona_id?: string } = {};
+      const body: { zona_id?: string; nombre?: string; mensaje?: string } = {};
       if (zonaId) body.zona_id = zonaId;
+      if (campanaNombre.trim()) body.nombre = campanaNombre.trim();
+      if (mensaje) body.mensaje = mensaje;
       const resp = await api.post<{ items: LinkBulkItem[] }>(
         "/api/clientes/generar-links-bulk",
         body,
@@ -378,11 +376,19 @@ function CampanaModal({
 
   const generarBroadcast = useMutation({
     mutationFn: async () => {
-      const resp = await api.post<{ url: string }>("/api/clientes/generar-link-broadcast", {});
-      return resp.data.url;
+      const body = {
+        nombre: campanaNombre.trim() || defaultNombre("Broadcast", zonaId),
+        mensaje,
+        zona_id: zonaId || null,
+      };
+      const resp = await api.post<{ url: string; campana_id: string }>(
+        "/api/clientes/generar-link-broadcast",
+        body,
+      );
+      return resp.data;
     },
-    onSuccess: (url) => {
-      setBroadcastUrl(url);
+    onSuccess: (data) => {
+      setBroadcastUrl(data.url);
       setBroadcastCopied(null);
     },
   });
@@ -408,21 +414,14 @@ function CampanaModal({
     }
   }
 
-  async function enviarBroadcastAuto() {
-    const nombre = broadcastListName.trim();
-    if (!nombre) {
-      setBroadcastAutoResult({ ok: false, error: "Ingresá el nombre exacto de la lista." });
-      return;
+  async function shareNativo(text: string) {
+    try {
+      await navigator.share({ text });
+    } catch (e) {
+      // El user puede cancelar el share sheet — no lo tratamos como error.
+      // eslint-disable-next-line no-console
+      console.debug("share cancelado:", e);
     }
-    if (!broadcastUrl) return;
-    localStorage.setItem("mr_broadcast_list_name", nombre);
-    setBroadcastAutoEnviando(true);
-    setBroadcastAutoResult(null);
-    const resp = await sendBroadcastViaExtension(nombre, mensajeBroadcast);
-    setBroadcastAutoEnviando(false);
-    setBroadcastAutoResult(
-      resp.ok ? { ok: true } : { ok: false, error: resp.error ?? "Error desconocido." },
-    );
   }
 
   function mensajeFor(item: LinkBulkItem): string {
@@ -498,6 +497,11 @@ function CampanaModal({
 
             {modo === "individual" && (
               <>
+                <Input
+                  placeholder={`Nombre de la campaña (ej: ${defaultNombre("Bulk", zonaId)})`}
+                  value={campanaNombre}
+                  onChange={(e) => setCampanaNombre(e.target.value)}
+                />
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="font-medium text-slate-700">Zona</span>
                   <select
@@ -545,6 +549,26 @@ function CampanaModal({
 
                 {!broadcastUrl && (
                   <>
+                    <Input
+                      placeholder={`Nombre de la campaña (ej: ${defaultNombre("Broadcast", zonaId)})`}
+                      value={campanaNombre}
+                      onChange={(e) => setCampanaNombre(e.target.value)}
+                    />
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="font-medium text-slate-700">Zona (opcional)</span>
+                      <select
+                        value={zonaId}
+                        onChange={(e) => setZonaId(e.target.value)}
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                      >
+                        <option value="">Sin zona específica</option>
+                        {zonas.map((z) => (
+                          <option key={z.id} value={z.id}>
+                            {z.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="flex flex-col gap-1 text-sm">
                       <span className="font-medium text-slate-700">
                         Mensaje (usá {"{link}"} donde quieras que vaya la URL)
@@ -590,56 +614,44 @@ function CampanaModal({
                       </div>
                     </div>
 
-                    {extensionDisponible && (
-                      <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
-                        <div className="text-sm font-medium text-sky-900">
-                          ⚡ Enviar broadcast automático
+                    {canShare && (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                        <div className="text-sm font-medium text-emerald-900">
+                          📱 Compartir directo desde tu celu
                         </div>
-                        <p className="mt-1 text-xs text-sky-800">
-                          Si ya tenés una lista de difusión creada en WhatsApp Web con todos los
-                          destinatarios, escribí el nombre exacto y la extensión se encarga del
-                          resto.
+                        <p className="mt-1 text-xs text-emerald-800">
+                          Abre el chooser nativo del sistema con el mensaje pre-cargado. Picá
+                          WhatsApp → la lista de difusión → enviar.
                         </p>
-                        <Input
-                          className="mt-2"
-                          placeholder='Ej: "Clientes Megarepartos"'
-                          value={broadcastListName}
-                          onChange={(e) => setBroadcastListName(e.target.value)}
-                          disabled={broadcastAutoEnviando}
-                        />
                         <div className="mt-2">
-                          <Button
-                            onClick={enviarBroadcastAuto}
-                            disabled={broadcastAutoEnviando || !broadcastListName.trim()}
-                          >
-                            <Zap size={14} />
-                            {broadcastAutoEnviando ? "Enviando…" : "Enviar broadcast ahora"}
+                          <Button onClick={() => shareNativo(mensajeBroadcast)}>
+                            <Send size={14} /> Compartir por WhatsApp
                           </Button>
                         </div>
-                        {broadcastAutoResult?.ok === true && (
-                          <p className="mt-2 rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-900">
-                            ✓ Broadcast enviado.
-                          </p>
-                        )}
-                        {broadcastAutoResult?.ok === false && (
-                          <p className="mt-2 rounded bg-rose-100 px-2 py-1 text-xs text-rose-900">
-                            ✗ {broadcastAutoResult.error}
-                          </p>
-                        )}
                       </div>
                     )}
 
                     <ol className="list-decimal space-y-1 pl-5 text-xs text-slate-600">
-                      <li>Abrí WhatsApp Web (o WhatsApp en el celu).</li>
-                      <li>Menú ⋮ → "Nueva difusión" / "Nueva lista de difusión".</li>
-                      <li>Seleccioná los clientes destinatarios (máx 256).</li>
                       <li>
-                        {extensionDisponible ? (
-                          <>Una vez creada, escribí su nombre arriba y "Enviar broadcast ahora".</>
-                        ) : (
-                          <>Pegá el mensaje copiado y enviá.</>
-                        )}
+                        Asegurate de tener la lista de difusión creada en WhatsApp (celu o WhatsApp
+                        Web).
                       </li>
+                      {canShare ? (
+                        <li>
+                          Toca <strong>"Compartir por WhatsApp"</strong> arriba → seleccioná tu
+                          lista de difusión → enviá.
+                        </li>
+                      ) : (
+                        <>
+                          <li>
+                            Hacé <strong>"Copiar mensaje completo"</strong> arriba.
+                          </li>
+                          <li>
+                            Andá a tu celu, abrí la lista de difusión, pegá y enviá. (En desktop no
+                            se puede mandar broadcasts, solo desde celu).
+                          </li>
+                        </>
+                      )}
                     </ol>
 
                     <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">

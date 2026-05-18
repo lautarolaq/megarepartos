@@ -20,6 +20,7 @@ const STORAGE_KEY = "mr_broadcast_phone";
 
 interface IdentificarOut {
   cliente_token: string;
+  campana_id: string;
   info: {
     cliente: { nombre_completo: string };
   };
@@ -41,7 +42,9 @@ export function BroadcastLandingPage() {
     },
     onSuccess: (data, phone) => {
       localStorage.setItem(STORAGE_KEY, phone);
-      navigate(`/c/${data.cliente_token}`, { replace: true });
+      // Propagamos campana_id por query param para que PublicoLink lo mande
+      // al POST de respuesta y la confirmación quede taggeada con la campaña.
+      navigate(`/c/${data.cliente_token}?campana=${data.campana_id}`, { replace: true });
     },
     onError: (err) => {
       const ax = err as AxiosError<{ error?: { message?: string } }>;

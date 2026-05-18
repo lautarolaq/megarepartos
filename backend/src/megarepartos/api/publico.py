@@ -31,6 +31,7 @@ from megarepartos.infra.auth import (
     verify_link_token,
 )
 from megarepartos.infra.db import get_session
+from megarepartos.infra.errors import ApiError, ErrorCode
 from megarepartos.infra.logging import get_logger
 from megarepartos.schemas.publico import (
     ClientePublico,
@@ -92,8 +93,21 @@ async def post_respuesta(
     settings: SettingsDep,
     session: SessionDep,
 ) -> dict[str, bool]:
-    """REQ-LINK-005/006: registra la respuesta del cliente como evento_dominio."""
+    """REQ-LINK-005/006: registra la respuesta del cliente como evento_dominio.
+
+    Si la respuesta viene desde una campaña (broadcast o bulk individual), el
+    frontend manda `campana_id` en el body — lo guardamos en el detalles del
+    evento para poder filtrar por campaña en el dashboard.
+    """
+    import uuid as _uuid
+
     cliente_id = verify_link_token(settings, token)
+    campana_id: _uuid.UUID | None = None
+    if payload.campana_id:
+        try:
+            campana_id = _uuid.UUID(payload.campana_id)
+        except ValueError:
+            campana_id = None  # tolerante: si llega mal, ignoramos en lugar de 400
 
     await session.execute(text("RESET ROLE"))
 
@@ -111,6 +125,7 @@ async def post_respuesta(
         accion=payload.accion,
         productos=productos,
         observacion=payload.observacion,
+        campana_id=campana_id,
     )
 
     _logger.info(
@@ -120,6 +135,7 @@ async def post_respuesta(
         accion=payload.accion,
         n_productos=len(productos),
         observacion=payload.observacion,
+        campana_id=str(campana_id) if campana_id else None,
     )
 
     await session.commit()
@@ -128,12 +144,11 @@ async def post_respuesta(
 
 # Broadcast -----------------------------------------------------------------
 #
-# Flujo: el sodero genera UN solo link firmado con `empresa_id` y lo manda por
-# WhatsApp broadcast list (texto + URL). Los clientes que tienen al sodero
-# guardado en contactos reciben el broadcast, abren la URL, tipean su teléfono.
-# El backend lo normaliza, busca el cliente en la empresa, y devuelve un token
-# personal de corta duración. El frontend usa ese token contra el endpoint
-# existente `/api/publico/c/{token}/respuesta` para registrar la respuesta.
+# Flujo: el sodero crea una `campana` y firma un broadcast token con su id.
+# Mando link → cliente tipea teléfono → backend resuelve cliente vs empresa
+# (vía campana) → devuelve token personal de 1h + campana_id. El frontend usa
+# el token contra `/c/{token}/respuesta` y manda el campana_id para que la
+# respuesta quede taggeada.
 
 
 @router.post("/b/{token}/identificar", response_model=IdentificarBroadcastOut)
@@ -143,10 +158,22 @@ async def identificar_broadcast(
     settings: SettingsDep,
     session: SessionDep,
 ) -> IdentificarBroadcastOut:
-    empresa_id = verify_broadcast_token(settings, token)
+    campana_id = verify_broadcast_token(settings, token)
     telefono_normalizado = normalizar_telefono(payload.telefono)
 
     await session.execute(text("RESET ROLE"))
+
+    # Resolver empresa desde la campaña.
+    empresa_id = (
+        await session.execute(
+            text("SELECT empresa_id FROM campana WHERE id = :id"),
+            {"id": campana_id},
+        )
+    ).scalar_one_or_none()
+    if empresa_id is None:
+        raise ApiError(
+            ErrorCode.RECURSO_NO_ENCONTRADO, "El link no es válido (campaña inexistente)."
+        )
 
     cliente_id = await buscar_cliente_por_telefono(
         session,
@@ -167,10 +194,12 @@ async def identificar_broadcast(
         "publico.broadcast.identificar",
         empresa_id=str(empresa_id),
         cliente_id=str(cliente_id),
+        campana_id=str(campana_id),
     )
 
     return IdentificarBroadcastOut(
         cliente_token=cliente_token,
+        campana_id=str(campana_id),
         info=LinkPublicoOut(
             empresa=EmpresaPublica(nombre=data.empresa_nombre),
             cliente=ClientePublico(

@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -39,6 +39,10 @@ interface ItemEstado {
 
 export function PublicoLinkPage() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  // Si el cliente vino desde un broadcast o un bulk-individual, el link trae
+  // ?campana=<id> — lo mandamos al POST para que la respuesta quede taggeada.
+  const campanaId = searchParams.get("campana");
   const [estado, setEstado] = useState<Estado>("pregunta");
   const [items, setItems] = useState<Record<string, ItemEstado>>({});
   const [observacion, setObservacion] = useState("");
@@ -81,6 +85,7 @@ export function PublicoLinkPage() {
         accion,
         productos,
         observacion: observacion || null,
+        campana_id: campanaId,
       });
     },
     onSuccess: (_resp, accion) => {

@@ -9,6 +9,7 @@ import {
   Clock,
   Inbox,
   LogOut,
+  Megaphone,
   Menu,
   Package,
   Truck,
@@ -95,6 +96,9 @@ export function DashboardLayout() {
         </NavItem>
         <NavItem to="/dashboard/clientes" icon={<Users size={16} />}>
           Clientes
+        </NavItem>
+        <NavItem to="/dashboard/campanas" icon={<Megaphone size={16} />}>
+          Campañas
         </NavItem>
         <NavItem to="/dashboard/usuarios" icon={<User size={16} />}>
           Usuarios

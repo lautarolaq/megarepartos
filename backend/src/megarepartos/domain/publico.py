@@ -172,10 +172,16 @@ async def registrar_respuesta(
     accion: str,
     productos: list[ProductoRespuesta],
     observacion: str | None,
+    campana_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
     """REQ-LINK-005/006: resuelve empresa del cliente y persiste evento_dominio.
 
     El caller debe haber hecho `RESET ROLE` antes. Devuelve el empresa_id.
+
+    Si `campana_id` viene seteado, lo guardamos en `evento_dominio.detalles`
+    para poder agrupar respuestas por campaña. Validamos que la campaña
+    pertenezca a la misma empresa que el cliente (defensivo — si llega un
+    campana_id de otra empresa, lo ignoramos en lugar de tirar 400).
     """
     empresa_id = (
         await session.execute(
@@ -185,6 +191,17 @@ async def registrar_respuesta(
     ).scalar_one_or_none()
     if empresa_id is None:
         raise ApiError(ErrorCode.RECURSO_NO_ENCONTRADO, "El link no es válido.")
+
+    campana_id_validada: uuid.UUID | None = None
+    if campana_id is not None:
+        owner = (
+            await session.execute(
+                text("SELECT empresa_id FROM campana WHERE id = :id"),
+                {"id": campana_id},
+            )
+        ).scalar_one_or_none()
+        if owner is not None and owner == empresa_id:
+            campana_id_validada = campana_id
 
     productos_detalle: list[dict[str, Any]] = []
     if productos:
@@ -219,5 +236,7 @@ async def registrar_respuesta(
         ev.detalles["accion"] = accion
         ev.detalles["productos"] = productos_detalle
         ev.detalles["observacion"] = observacion
+        if campana_id_validada is not None:
+            ev.detalles["campana_id"] = str(campana_id_validada)
 
     return empresa_id
