@@ -54,12 +54,23 @@ const FECHA_DIAS: Record<FiltroFecha, number | null> = {
   todos: null,
 };
 
+interface ZonaItem {
+  id: string;
+  nombre: string;
+}
+
 export function PedidosPage() {
   const [filtroAccion, setFiltroAccion] = useState<FiltroAccion>("todos");
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("semana");
+  const [filtroZona, setFiltroZona] = useState<string>(""); // "" todas, uuid zona específica, "__none__" sin zona
   const [agruparZona, setAgruparZona] = useState(false);
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
+
+  const { data: zonasData } = useQuery({
+    queryKey: ["zonas"],
+    queryFn: async (): Promise<{ items: ZonaItem[] }> => (await api.get("/api/zonas")).data,
+  });
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim()), 300);
@@ -152,6 +163,19 @@ export function PedidosPage() {
             { value: "rechazo", label: "Rechazaron" },
           ]}
         />
+        <select
+          value={filtroZona}
+          onChange={(e) => setFiltroZona(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+        >
+          <option value="">Todas las zonas</option>
+          {(zonasData?.items ?? []).map((z) => (
+            <option key={z.id} value={z.id}>
+              {z.nombre}
+            </option>
+          ))}
+          <option value="__none__">Sin zona asignada</option>
+        </select>
         <div className="relative flex-1 min-w-[14rem] max-w-sm">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -185,22 +209,36 @@ export function PedidosPage() {
         </div>
       )}
 
-      {data && data.items.length > 0 && (
-        <>
-          <p className="mt-4 text-xs text-slate-500">
-            {data.total} pedido{data.total === 1 ? "" : "s"}
-          </p>
-          {agruparZona ? (
-            <PedidosPorZona items={data.items} />
-          ) : (
-            <div className="mt-2 flex flex-col gap-3">
-              {data.items.map((p) => (
-                <PedidoCard key={p.evento_id} pedido={p} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+      {data &&
+        data.items.length > 0 &&
+        (() => {
+          const filtered = filtroZona
+            ? data.items.filter((p) =>
+                filtroZona === "__none__"
+                  ? p.cliente_zona_id === null
+                  : p.cliente_zona_id === filtroZona,
+              )
+            : data.items;
+          return (
+            <>
+              <p className="mt-4 text-xs text-slate-500">
+                {filtered.length} pedido{filtered.length === 1 ? "" : "s"}
+                {filtroZona && filtered.length !== data.items.length && (
+                  <span className="text-slate-400"> (filtrados de {data.items.length})</span>
+                )}
+              </p>
+              {agruparZona ? (
+                <PedidosPorZona items={filtered} />
+              ) : (
+                <div className="mt-2 flex flex-col gap-3">
+                  {filtered.map((p) => (
+                    <PedidoCard key={p.evento_id} pedido={p} />
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
     </div>
   );
 }
