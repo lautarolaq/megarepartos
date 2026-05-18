@@ -21,6 +21,11 @@ interface Pedido {
   cliente_direccion: string | null;
   cliente_zona_id: string | null;
   cliente_zona_nombre: string | null;
+  campana_id: string | null;
+  campana_nombre: string | null;
+  campana_zona_id: string | null;
+  campana_zona_nombre: string | null;
+  zona_mismatch: boolean;
   accion: "confirmo" | "rechazo" | string;
   productos: ProductoPedido[];
   observacion: string | null;
@@ -213,11 +218,15 @@ export function PedidosPage() {
         data.items.length > 0 &&
         (() => {
           const filtered = filtroZona
-            ? data.items.filter((p) =>
-                filtroZona === "__none__"
-                  ? p.cliente_zona_id === null
-                  : p.cliente_zona_id === filtroZona,
-              )
+            ? data.items.filter((p) => {
+                if (filtroZona === "__none__") {
+                  return p.cliente_zona_id === null && p.campana_zona_id === null;
+                }
+                // Match si el cliente es de esa zona O si vino por una campaña
+                // de esa zona (caso de mismatch — el pedido pertenece a la
+                // ruta del sodero aunque el cliente sea de otra zona).
+                return p.cliente_zona_id === filtroZona || p.campana_zona_id === filtroZona;
+              })
             : data.items;
           return (
             <>
@@ -244,10 +253,13 @@ export function PedidosPage() {
 }
 
 function PedidosPorZona({ items }: { items: Pedido[] }) {
-  // Agrupar por zona_nombre. Sin zona va al final como "Sin zona".
+  // Agrupar por zona "operativa": si el pedido vino de una campaña con zona,
+  // usar la zona de la campaña (porque es la ruta del sodero ese día). Si no,
+  // la zona del cliente. Esto hace que los pedidos con mismatch caigan en
+  // el grupo correcto para la ruta.
   const grupos = new Map<string, Pedido[]>();
   for (const p of items) {
-    const key = p.cliente_zona_nombre ?? "Sin zona";
+    const key = p.campana_zona_nombre ?? p.cliente_zona_nombre ?? "Sin zona";
     const arr = grupos.get(key) ?? [];
     arr.push(p);
     grupos.set(key, arr);
@@ -348,11 +360,28 @@ function PedidoCard({ pedido }: { pedido: Pedido }) {
           {pedido.cliente_direccion && (
             <p className="mt-0.5 text-xs text-slate-500">{pedido.cliente_direccion}</p>
           )}
-          {pedido.cliente_zona_nombre && (
-            <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-              {pedido.cliente_zona_nombre}
-            </span>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            {pedido.zona_mismatch ? (
+              <span
+                className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900"
+                title={`Este cliente es de ${pedido.cliente_zona_nombre ?? "sin zona"}, pero respondió a una campaña de zona ${pedido.campana_zona_nombre ?? "—"}`}
+              >
+                ⚠ {pedido.campana_zona_nombre ?? "—"} (cliente:{" "}
+                {pedido.cliente_zona_nombre ?? "sin zona"})
+              </span>
+            ) : (
+              pedido.cliente_zona_nombre && (
+                <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                  {pedido.cliente_zona_nombre}
+                </span>
+              )
+            )}
+            {pedido.campana_nombre && !pedido.zona_mismatch && (
+              <span className="inline-block rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-700">
+                {pedido.campana_nombre}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span

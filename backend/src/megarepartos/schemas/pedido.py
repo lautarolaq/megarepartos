@@ -33,6 +33,11 @@ class PedidoOut(BaseModel):
     cliente_direccion: str | None = None
     cliente_zona_id: uuid.UUID | None = None
     cliente_zona_nombre: str | None = None
+    campana_id: uuid.UUID | None = None
+    campana_nombre: str | None = None
+    campana_zona_id: uuid.UUID | None = None
+    campana_zona_nombre: str | None = None
+    zona_mismatch: bool = False
     accion: str  # "confirmo" | "rechazo"
     productos: list[ProductoPedido] = []
     observacion: str | None = None

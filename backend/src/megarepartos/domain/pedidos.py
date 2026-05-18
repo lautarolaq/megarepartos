@@ -11,9 +11,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from megarepartos.models.campana import Campana
 from megarepartos.models.cliente import Cliente
 from megarepartos.models.evento import EventoDominio
 from megarepartos.models.zona import Zona
@@ -28,7 +31,12 @@ class PedidoRow:
     cliente_direccion: str | None
     cliente_zona_id: uuid.UUID | None
     cliente_zona_nombre: str | None
-    fecha: datetime
+    campana_id: uuid.UUID | None = None
+    campana_nombre: str | None = None
+    campana_zona_id: uuid.UUID | None = None
+    campana_zona_nombre: str | None = None
+    zona_mismatch: bool = False
+    fecha: datetime = field(default_factory=lambda: datetime.now(UTC))
     detalles: dict[str, Any] = field(default_factory=dict)
 
 
@@ -87,6 +95,11 @@ async def listar_pedidos(
         like = f"%{q.strip()}%"
         base_filters.append((Cliente.nombre_completo.ilike(like)) | (Cliente.telefono.ilike(like)))
 
+    # Alias para la zona de la campaña (si la respuesta vino de una).
+    ZonaCampana = aliased(Zona)
+    # La campana_id está en detalles_jsonb (no es FK directo).
+    campana_id_expr = cast(EventoDominio.detalles_jsonb["campana_id"].astext, PG_UUID)
+
     base = (
         select(
             EventoDominio.id.label("evento_id"),
@@ -98,9 +111,18 @@ async def listar_pedidos(
             Cliente.direccion.label("cliente_direccion"),
             Cliente.zona_id.label("cliente_zona_id"),
             Zona.nombre.label("cliente_zona_nombre"),
+            Campana.id.label("campana_id"),
+            Campana.nombre.label("campana_nombre"),
+            cast(Campana.destinatarios_origen["zona_id"].astext, PG_UUID).label("campana_zona_id"),
+            ZonaCampana.nombre.label("campana_zona_nombre"),
         )
         .join(Cliente, Cliente.id == EventoDominio.entidad_id)
         .outerjoin(Zona, Zona.id == Cliente.zona_id)
+        .outerjoin(Campana, Campana.id == campana_id_expr)
+        .outerjoin(
+            ZonaCampana,
+            ZonaCampana.id == cast(Campana.destinatarios_origen["zona_id"].astext, PG_UUID),
+        )
         .where(*base_filters)
     )
 
@@ -126,6 +148,11 @@ async def listar_pedidos(
             cliente_direccion=r.cliente_direccion,
             cliente_zona_id=r.cliente_zona_id,
             cliente_zona_nombre=r.cliente_zona_nombre,
+            campana_id=r.campana_id,
+            campana_nombre=r.campana_nombre,
+            campana_zona_id=r.campana_zona_id,
+            campana_zona_nombre=r.campana_zona_nombre,
+            zona_mismatch=bool((r.detalles or {}).get("zona_mismatch")),
             fecha=r.fecha,
             detalles=r.detalles or {},
         )
