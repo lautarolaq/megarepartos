@@ -397,16 +397,30 @@ async def listar_clientes_para_links(
     *,
     empresa_id: uuid.UUID,
     zona_id: uuid.UUID | None = None,
+    sin_zona: bool = False,
 ) -> list[ClienteParaLink]:
-    """Lista clientes activos (para bulk-generar links). Solo campos necesarios."""
-    items, _ = await listar_clientes(
-        session,
-        empresa_id=empresa_id,
-        zona_id=zona_id,
-        activo=True,
-        limit=MAX_LIMIT,
-        offset=0,
-    )
+    """Lista clientes activos (para bulk-generar links). Solo campos necesarios.
+
+    Si `sin_zona=True`, filtra solo a los clientes que NO tienen zona asignada
+    (zona_id IS NULL). `zona_id` y `sin_zona` son mutuamente excluyentes —
+    el caller setea uno u otro.
+    """
+    if sin_zona:
+        stmt = select(Cliente).where(
+            Cliente.empresa_id == empresa_id,
+            Cliente.zona_id.is_(None),
+            Cliente.activo.is_(True),
+        )
+        items = list((await session.execute(stmt)).scalars().all())
+    else:
+        items, _ = await listar_clientes(
+            session,
+            empresa_id=empresa_id,
+            zona_id=zona_id,
+            activo=True,
+            limit=MAX_LIMIT,
+            offset=0,
+        )
     return [
         ClienteParaLink(id=c.id, nombre_completo=c.nombre_completo, telefono=c.telefono)
         for c in items

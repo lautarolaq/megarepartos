@@ -252,7 +252,10 @@ async def generar_links_bulk(
     landing pueda taggear la respuesta.
     """
     zona_id: uuid.UUID | None = None
-    if payload.zona_id:
+    sin_zona = False
+    if payload.zona_id == "__none__":
+        sin_zona = True
+    elif payload.zona_id:
         try:
             zona_id = uuid.UUID(payload.zona_id)
         except ValueError:
@@ -269,7 +272,10 @@ async def generar_links_bulk(
     )
 
     clientes = await listar_clientes_para_links(
-        session, empresa_id=admin_claims.empresa_id, zona_id=zona_id
+        session,
+        empresa_id=admin_claims.empresa_id,
+        zona_id=zona_id,
+        sin_zona=sin_zona,
     )
     items: list[LinkBulkItem] = []
     for c in clientes:
@@ -316,7 +322,7 @@ async def generar_link_broadcast(
     campaña → visible/filtrable en `/dashboard/campanas`.
     """
     zona_id: uuid.UUID | None = None
-    if payload.zona_id:
+    if payload.zona_id and payload.zona_id != "__none__":
         try:
             zona_id = uuid.UUID(payload.zona_id)
         except ValueError:

@@ -504,36 +504,32 @@ function CampanaModal({
             {modo === "individual" && (
               <>
                 <Input
-                  placeholder={`Nombre de la campaña (ej: ${defaultNombre("Bulk", zonaId)})`}
+                  placeholder={`Nombre (ej: ${defaultNombre("Bulk", zonaId)})`}
                   value={campanaNombre}
                   onChange={(e) => setCampanaNombre(e.target.value)}
                 />
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-slate-700">Zona</span>
+                {zonas.length > 0 && (
                   <select
                     value={zonaId}
                     onChange={(e) => setZonaId(e.target.value)}
                     className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
                   >
-                    <option value="">Todas las zonas (todos los clientes activos)</option>
+                    <option value="">Todas las zonas</option>
                     {zonas.map((z) => (
                       <option key={z.id} value={z.id}>
                         {z.nombre}
                       </option>
                     ))}
+                    <option value="__none__">Sin zona asignada</option>
                   </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-slate-700">
-                    Mensaje (usá {"{nombre}"} y {"{link}"})
-                  </span>
-                  <textarea
-                    rows={4}
-                    value={mensaje}
-                    onChange={(e) => setMensaje(e.target.value)}
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                  />
-                </label>
+                )}
+                <textarea
+                  rows={4}
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value)}
+                  placeholder="Tu mensaje. Usá {nombre} y {link}."
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                />
                 <div className="mt-2 flex justify-end gap-2">
                   <Button variant="ghost" onClick={onClose}>
                     Cancelar
@@ -552,18 +548,21 @@ function CampanaModal({
                   value={campanaNombre}
                   onChange={(e) => setCampanaNombre(e.target.value)}
                 />
-                <select
-                  value={zonaId}
-                  onChange={(e) => setZonaId(e.target.value)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                >
-                  <option value="">Sin zona</option>
-                  {zonas.map((z) => (
-                    <option key={z.id} value={z.id}>
-                      {z.nombre}
-                    </option>
-                  ))}
-                </select>
+                {zonas.length > 0 && (
+                  <select
+                    value={zonaId}
+                    onChange={(e) => setZonaId(e.target.value)}
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  >
+                    <option value="">Todas las zonas</option>
+                    {zonas.map((z) => (
+                      <option key={z.id} value={z.id}>
+                        {z.nombre}
+                      </option>
+                    ))}
+                    <option value="__none__">Sin zona asignada</option>
+                  </select>
+                )}
                 <textarea
                   rows={4}
                   value={mensaje}
