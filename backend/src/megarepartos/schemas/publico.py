@@ -83,3 +83,30 @@ class GenerarLinksBulkIn(BaseModel):
 
 class GenerarLinksBulkOut(BaseModel):
     items: list[LinkBulkItem]
+
+
+# Broadcast -----------------------------------------------------------------
+
+
+class GenerarLinkBroadcastOut(BaseModel):
+    """Respuesta de `POST /api/clientes/generar-link-broadcast` (admin)."""
+
+    url: str
+    token: str
+    expira_en_dias: int
+
+
+class IdentificarBroadcastIn(BaseModel):
+    """Body de `POST /api/publico/b/{token}/identificar`."""
+
+    telefono: str
+
+
+class IdentificarBroadcastOut(BaseModel):
+    """Respuesta — devuelve datos del cliente Y un token personal de corta
+    duración para que la landing pueda hacer el POST de respuesta usando el
+    flujo existente `/api/publico/c/{token}/respuesta`.
+    """
+
+    cliente_token: str
+    info: LinkPublicoOut

@@ -56,8 +56,10 @@ def _token(settings: Settings, *, usuario_id, empresa_id, rol="admin") -> str:
 
 
 def test_normalizar_telefono_agrega_codigo_pais() -> None:
-    assert normalizar_telefono("351 555 1234") == "+543515551234"
-    assert normalizar_telefono("0351-555-1234") == "+543515551234"
+    # WhatsApp en AR requiere el "9" después del 54 para celulares, así que
+    # `normalizar_telefono` lo agrega automáticamente.
+    assert normalizar_telefono("351 555 1234") == "+5493515551234"
+    assert normalizar_telefono("0351-555-1234") == "+5493515551234"
     assert normalizar_telefono("+54 9 351 5551234") == "+5493515551234"
 
 
@@ -277,7 +279,7 @@ async def test_REQ_CLI_007_010_GEO_004_post_crea_normaliza_y_geocodea(
     assert resp.status_code == 201
     body = resp.json()
     assert body["nombre_completo"] == "Juan García"
-    assert body["telefono"] == "+543515551234"
+    assert body["telefono"] == "+5493515551234"
     assert body["modalidad"] == "fijo"
 
     # REQ-GEO-004: coordenadas se persistieron.

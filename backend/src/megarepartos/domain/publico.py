@@ -51,6 +51,58 @@ class ProductoRespuesta:
     cantidad_vacios: int
 
 
+async def buscar_cliente_por_telefono(
+    session: AsyncSession,
+    *,
+    empresa_id: uuid.UUID,
+    telefono: str,
+) -> uuid.UUID:
+    """Busca un cliente de la empresa por teléfono (E.164 normalizado).
+
+    Estrategia para tolerar diferencias menores entre lo que el cliente tipea
+    y lo que está guardado: probamos match exacto contra el normalizado y,
+    si falla, contra los últimos 10 dígitos. El caller debe haber hecho
+    `RESET ROLE` antes (sin tenant context).
+
+    Levanta `RECURSO_NO_ENCONTRADO` si no hay match.
+    """
+    # 1) Match exacto.
+    cliente_id = (
+        await session.execute(
+            select(Cliente.id).where(
+                Cliente.empresa_id == empresa_id,
+                Cliente.telefono == telefono,
+                Cliente.activo.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if cliente_id is not None:
+        return cliente_id
+
+    # 2) Match por sufijo de 10 dígitos (típicamente: código de país y 9 difieren).
+    digits_only = "".join(c for c in telefono if c.isdigit())
+    if len(digits_only) >= 10:
+        suffix = digits_only[-10:]
+        cliente_id = (
+            await session.execute(
+                text(
+                    "SELECT id FROM cliente "
+                    "WHERE empresa_id = :eid AND activo = true "
+                    "  AND regexp_replace(telefono, '\\D', '', 'g') LIKE :sufix "
+                    "LIMIT 1"
+                ),
+                {"eid": empresa_id, "sufix": f"%{suffix}"},
+            )
+        ).scalar_one_or_none()
+        if cliente_id is not None:
+            return cliente_id
+
+    raise ApiError(
+        ErrorCode.RECURSO_NO_ENCONTRADO,
+        "No encontramos tu número entre los clientes de esta sodería.",
+    )
+
+
 async def obtener_info_link(
     session: AsyncSession,
     *,

@@ -37,18 +37,67 @@ class HabitualIn:
 
 
 def normalizar_telefono(raw: str) -> str:
-    """REQ-CLI-010: strip + agrega +54 si no empieza con +.
+    """REQ-CLI-010: normaliza teléfonos AR al formato `+549XXXXXXXX` para WhatsApp.
+
+    Maneja las variantes habituales que los clientes tipean:
+    - "351 770 7209"             → "+5493517707209"
+    - "+54 9 351 770 7209"       → "+5493517707209"
+    - "0351 15 770 7209"         → "+5493517707209"  (saca 0 inicial + 15 entre área y nro)
+    - "+54 3517707209"           → "+5493517707209"  (agrega el 9 que falta para celular)
+    - "+54 11 1234 5678"         → "+5491112345678"
+
+    Para nros con códigos no-AR (que ya empiezan con +xx donde xx != 54) los
+    deja como están — la sodería podría tener algún cliente extranjero.
 
     Levanta `VALIDACION_INPUT` si no hay ningún dígito.
     """
-    cleaned = re.sub(r"[\s\-\(\)]", "", raw.strip())
+    cleaned = re.sub(r"[\s\-\(\)\.]", "", raw.strip())
     if not re.search(r"\d", cleaned):
         raise ApiError(ErrorCode.VALIDACION_INPUT, "Teléfono debe tener al menos un dígito.")
-    if not cleaned.startswith("+"):
-        # Sacar el 0 inicial si está (típico AR: "0351...").
-        cleaned = cleaned.lstrip("0")
-        cleaned = "+54" + cleaned
-    return cleaned
+
+    # Casos con + explícito.
+    if cleaned.startswith("+"):
+        digits = cleaned[1:]
+        # Si es AR (+54...): asegurar prefijo de celular "9" después del 54.
+        if digits.startswith("54"):
+            rest = digits[2:]
+            # Sacar "9" si ya está, así no lo agregamos dos veces.
+            if rest.startswith("9"):
+                rest = rest[1:]
+            # Sacar "15" entre área y número (típico WhatsApp Argentina).
+            rest = _sacar_15_post_area(rest)
+            return "+549" + rest
+        # No es AR: devolver tal cual con el +.
+        return "+" + digits
+
+    # Sin +: asumimos AR. Sacamos 0 inicial y 15 post-área, agregamos +549.
+    digits = cleaned.lstrip("0")
+    digits = _sacar_15_post_area(digits)
+    # Si por algún motivo ya empieza con "549", no lo dupliquemos.
+    if digits.startswith("549"):
+        return "+" + digits
+    if digits.startswith("54"):
+        return "+549" + digits[2:]
+    return "+549" + digits
+
+
+# Saca el "15" entre código de área y número de línea (formato local AR para
+# celulares: `area 15 nro`). Solo aplica si al sacarlo el resultado queda en
+# el largo canónico de un teléfono AR sin código país (10 dígitos), si no
+# corremos el riesgo de matchear "15" que es parte del número de línea
+# (ej: "351 555 1234" tiene "15" en posición [2:4] que NO es prefijo de
+# celular sino los dígitos finales del área "351" + primer dígito de "555").
+def _sacar_15_post_area(digits: str) -> str:
+    if len(digits) == 10:
+        return digits  # ya tiene el largo correcto, no hay 15 que sacar
+    for area_len in (2, 3, 4):
+        if (
+            len(digits) > area_len + 2
+            and digits[area_len : area_len + 2] == "15"
+            and len(digits) - 2 == 10  # resultado quedaría en 10 dígitos
+        ):
+            return digits[:area_len] + digits[area_len + 2 :]
+    return digits
 
 
 async def listar_clientes(

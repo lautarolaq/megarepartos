@@ -188,6 +188,54 @@ def verify_link_token(settings: Settings, token: str) -> uuid.UUID:
     return cliente_id
 
 
+# Broadcast tokens — firmados sobre empresa_id en vez de cliente_id. La idea:
+# un solo link "genérico" que sirve para una campaña broadcast en WhatsApp,
+# y el cliente se identifica con su teléfono en la landing. Usamos un prefix
+# "broadcast:" en el HMAC input para que estos tokens no sean intercambiables
+# con los tokens personales por cliente.
+
+BROADCAST_TOKEN_DEFAULT_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 días
+
+
+def sign_broadcast_token(
+    settings: Settings,
+    *,
+    empresa_id: uuid.UUID,
+    ttl_seconds: int = BROADCAST_TOKEN_DEFAULT_TTL_SECONDS,
+) -> str:
+    expires_ts = str(_now_ts() + ttl_seconds)
+    payload = f"broadcast:{empresa_id}.{expires_ts}"
+    sig = hmac.new(
+        settings.jwt_secret.encode(),
+        payload.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{empresa_id}.{expires_ts}.{sig}"
+
+
+def verify_broadcast_token(settings: Settings, token: str) -> uuid.UUID:
+    """Valida firma + TTL del broadcast token. Devuelve `empresa_id`."""
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "Token con formato inválido.")
+    empresa_id_str, expires_ts_str, sig = parts
+    expected_sig = hmac.new(
+        settings.jwt_secret.encode(),
+        f"broadcast:{empresa_id_str}.{expires_ts_str}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_sig, sig):
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "Firma inválida.")
+    try:
+        expires_ts = int(expires_ts_str)
+        empresa_id = uuid.UUID(empresa_id_str)
+    except ValueError as exc:
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "Token mal formado.") from exc
+    if _now_ts() > expires_ts:
+        raise ApiError(ErrorCode.VALIDACION_INPUT, "El link expiró.")
+    return empresa_id
+
+
 # State (CSRF) -------------------------------------------------------------
 
 STATE_TTL_SECONDS = 10 * 60

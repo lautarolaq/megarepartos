@@ -1,4 +1,5 @@
 import { AuthCallbackPage } from "@/pages/AuthCallback";
+import { BroadcastLandingPage } from "@/pages/BroadcastLanding";
 import { ClienteDetallePage } from "@/pages/ClienteDetalle";
 import { ClientesPage } from "@/pages/Clientes";
 import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
@@ -37,6 +38,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/c/:token" element={<PublicoLinkPage />} />
+      <Route path="/b/:token" element={<BroadcastLandingPage />} />
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route index element={<DashboardIndex />} />
         <Route path="pedidos" element={<PedidosPage />} />

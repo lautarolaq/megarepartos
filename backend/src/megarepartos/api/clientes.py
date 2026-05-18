@@ -25,11 +25,13 @@ from megarepartos.domain.clientes import (
 )
 from megarepartos.domain.pedidos import historial_cliente
 from megarepartos.infra.auth import (
+    BROADCAST_TOKEN_DEFAULT_TTL_SECONDS,
     LINK_TOKEN_DEFAULT_TTL_SECONDS,
     TokenClaims,
     authenticated_session,
     current_claims,
     require_rol,
+    sign_broadcast_token,
     sign_link_token,
 )
 from megarepartos.infra.errors import ApiError, ErrorCode
@@ -44,6 +46,7 @@ from megarepartos.schemas.cliente import (
 )
 from megarepartos.schemas.pedido import HistorialClienteOut, HistorialEventoOut
 from megarepartos.schemas.publico import (
+    GenerarLinkBroadcastOut,
     GenerarLinkOut,
     GenerarLinksBulkIn,
     GenerarLinksBulkOut,
@@ -271,6 +274,25 @@ async def generar_links_bulk(
             )
         )
     return GenerarLinksBulkOut(items=items)
+
+
+@router.post("/generar-link-broadcast", response_model=GenerarLinkBroadcastOut)
+async def generar_link_broadcast(
+    admin_claims: AdminDep,
+    settings: SettingsDep,
+) -> GenerarLinkBroadcastOut:
+    """Genera UN link genérico de broadcast para la empresa del admin.
+
+    El admin lo pega en su WhatsApp Web junto con el mensaje, lo manda a una
+    Broadcast List, y los destinatarios entran al link, tipean su teléfono y
+    se identifican contra el padrón de clientes.
+    """
+    token = sign_broadcast_token(settings, empresa_id=admin_claims.empresa_id)
+    return GenerarLinkBroadcastOut(
+        url=f"{settings.frontend_base_url}/b/{token}",
+        token=token,
+        expira_en_dias=BROADCAST_TOKEN_DEFAULT_TTL_SECONDS // (24 * 60 * 60),
+    )
 
 
 @router.get("/{cliente_id}/historial", response_model=HistorialClienteOut)

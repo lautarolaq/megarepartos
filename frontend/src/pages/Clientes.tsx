@@ -317,6 +317,9 @@ function CampanaModal({
   const [autoEnEjecucion, setAutoEnEjecucion] = useState(false);
   const [extensionDisponible, setExtensionDisponible] = useState(false);
   const [mensaje, setMensaje] = useState(mensajeBase);
+  const [modo, setModo] = useState<"individual" | "broadcast">("individual");
+  const [broadcastUrl, setBroadcastUrl] = useState<string | null>(null);
+  const [broadcastCopied, setBroadcastCopied] = useState<"link" | "mensaje" | null>(null);
 
   // Resetear estado SOLO cuando el modal se abre. Si incluimos mensajeBase en las
   // deps, la response de /api/empresa/me llegando después de "Generar links"
@@ -329,6 +332,9 @@ function CampanaModal({
       setErroresAuto(new Map());
       setAutoEnEjecucion(false);
       setExtensionDisponible(isExtensionInstalled());
+      setModo("individual");
+      setBroadcastUrl(null);
+      setBroadcastCopied(null);
     }
   }, [open, zonaIdInicial]);
 
@@ -353,6 +359,38 @@ function CampanaModal({
       setEnviados(new Set());
     },
   });
+
+  const generarBroadcast = useMutation({
+    mutationFn: async () => {
+      const resp = await api.post<{ url: string }>("/api/clientes/generar-link-broadcast", {});
+      return resp.data.url;
+    },
+    onSuccess: (url) => {
+      setBroadcastUrl(url);
+      setBroadcastCopied(null);
+    },
+  });
+
+  // En modo broadcast el mensaje no tiene {nombre} (es genérico). Sustituimos
+  // {link} por el broadcastUrl al copiar.
+  const mensajeBroadcast = (() => {
+    if (!broadcastUrl) return mensaje;
+    // Si el user dejó el {nombre} en el template, lo reemplazamos por algo
+    // genérico cordial. {link} se reemplaza por la URL del broadcast.
+    return mensaje.replace(/\{nombre\}/g, "🚚").replace(/\{link\}/g, broadcastUrl);
+  })();
+
+  async function copiar(text: string, tipo: "link" | "mensaje") {
+    try {
+      await navigator.clipboard.writeText(text);
+      setBroadcastCopied(tipo);
+      setTimeout(() => setBroadcastCopied(null), 2000);
+    } catch {
+      // navigator.clipboard puede no estar disponible en contextos no-https.
+      // Fallback: seleccionar el contenido del textarea para copy manual.
+      window.prompt("Copiá este texto:", text);
+    }
+  }
 
   function mensajeFor(item: LinkBulkItem): string {
     const primer = item.nombre_completo.split(" ")[0];
@@ -403,40 +441,144 @@ function CampanaModal({
       <div className="flex flex-col gap-3">
         {!items && (
           <>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-slate-700">Zona</span>
-              <select
-                value={zonaId}
-                onChange={(e) => setZonaId(e.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            {/* Toggle modo: individual (link por cliente) vs broadcast (UN link genérico). */}
+            <div className="flex rounded-md bg-slate-100 p-1 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setModo("individual")}
+                className={`flex-1 rounded px-3 py-1.5 transition ${
+                  modo === "individual" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                }`}
               >
-                <option value="">Todas las zonas (todos los clientes activos)</option>
-                {zonas.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-slate-700">
-                Mensaje (usá {"{nombre}"} y {"{link}"})
-              </span>
-              <textarea
-                rows={4}
-                value={mensaje}
-                onChange={(e) => setMensaje(e.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-              />
-            </label>
-            <div className="mt-2 flex justify-end gap-2">
-              <Button variant="ghost" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button onClick={() => generar.mutate()} disabled={generar.isPending}>
-                {generar.isPending ? "Generando…" : "Generar links"}
-              </Button>
+                Individual (1 link x cliente)
+              </button>
+              <button
+                type="button"
+                onClick={() => setModo("broadcast")}
+                className={`flex-1 rounded px-3 py-1.5 transition ${
+                  modo === "broadcast" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                }`}
+              >
+                Broadcast (1 link genérico)
+              </button>
             </div>
+
+            {modo === "individual" && (
+              <>
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="font-medium text-slate-700">Zona</span>
+                  <select
+                    value={zonaId}
+                    onChange={(e) => setZonaId(e.target.value)}
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  >
+                    <option value="">Todas las zonas (todos los clientes activos)</option>
+                    {zonas.map((z) => (
+                      <option key={z.id} value={z.id}>
+                        {z.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="font-medium text-slate-700">
+                    Mensaje (usá {"{nombre}"} y {"{link}"})
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={mensaje}
+                    onChange={(e) => setMensaje(e.target.value)}
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  />
+                </label>
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button variant="ghost" onClick={onClose}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => generar.mutate()} disabled={generar.isPending}>
+                    {generar.isPending ? "Generando…" : "Generar links"}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {modo === "broadcast" && (
+              <>
+                <p className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                  El broadcast manda <strong>UN solo link genérico</strong> a hasta 256 contactos de
+                  tu WhatsApp. Solo lo reciben los clientes que tienen tu número guardado. Cuando
+                  abren el link tipean su teléfono y se identifican.
+                </p>
+
+                {!broadcastUrl && (
+                  <>
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="font-medium text-slate-700">
+                        Mensaje (usá {"{link}"} donde quieras que vaya la URL)
+                      </span>
+                      <textarea
+                        rows={4}
+                        value={mensaje}
+                        onChange={(e) => setMensaje(e.target.value)}
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                      />
+                      <span className="text-xs text-slate-500">
+                        Tip: no uses {"{nombre}"} acá — el mensaje va igual a todos.
+                      </span>
+                    </label>
+                    <div className="mt-2 flex justify-end gap-2">
+                      <Button variant="ghost" onClick={onClose}>
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={() => generarBroadcast.mutate()}
+                        disabled={generarBroadcast.isPending}
+                      >
+                        {generarBroadcast.isPending ? "Generando…" : "Generar link broadcast"}
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {broadcastUrl && (
+                  <>
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <p className="font-medium text-slate-700">Mensaje listo para pegar:</p>
+                      <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-white p-2 text-xs text-slate-800">
+                        {mensajeBroadcast}
+                      </pre>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button onClick={() => copiar(mensajeBroadcast, "mensaje")}>
+                          {broadcastCopied === "mensaje" ? "✓ Copiado" : "Copiar mensaje completo"}
+                        </Button>
+                        <Button variant="ghost" onClick={() => copiar(broadcastUrl, "link")}>
+                          {broadcastCopied === "link" ? "✓ Copiado" : "Solo el link"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <ol className="list-decimal space-y-1 pl-5 text-xs text-slate-600">
+                      <li>Abrí WhatsApp Web (o WhatsApp en el celu).</li>
+                      <li>Menú ⋮ → "Nueva difusión" / "Nueva lista de difusión".</li>
+                      <li>Seleccioná los clientes destinatarios (máx 256).</li>
+                      <li>Pegá el mensaje copiado y enviá.</li>
+                    </ol>
+
+                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      ⚠ Recordá: solo reciben el broadcast los que tienen tu número guardado en su
+                      celu. Para clientes que no te tienen agendado, usá el modo Individual.
+                    </p>
+
+                    <div className="mt-2 flex justify-between">
+                      <Button variant="ghost" onClick={() => setBroadcastUrl(null)}>
+                        ← Volver
+                      </Button>
+                      <Button onClick={onClose}>Cerrar</Button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </>
         )}
 

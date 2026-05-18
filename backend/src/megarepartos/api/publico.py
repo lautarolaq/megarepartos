@@ -18,17 +18,25 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.config import Settings, get_settings
+from megarepartos.domain.clientes import normalizar_telefono
 from megarepartos.domain.publico import (
     ProductoRespuesta,
+    buscar_cliente_por_telefono,
     obtener_info_link,
     registrar_respuesta,
 )
-from megarepartos.infra.auth import verify_link_token
+from megarepartos.infra.auth import (
+    sign_link_token,
+    verify_broadcast_token,
+    verify_link_token,
+)
 from megarepartos.infra.db import get_session
 from megarepartos.infra.logging import get_logger
 from megarepartos.schemas.publico import (
     ClientePublico,
     EmpresaPublica,
+    IdentificarBroadcastIn,
+    IdentificarBroadcastOut,
     LinkPublicoOut,
     ProductoHabitualPublico,
     RespuestaIn,
@@ -116,3 +124,69 @@ async def post_respuesta(
 
     await session.commit()
     return {"ok": True}
+
+
+# Broadcast -----------------------------------------------------------------
+#
+# Flujo: el sodero genera UN solo link firmado con `empresa_id` y lo manda por
+# WhatsApp broadcast list (texto + URL). Los clientes que tienen al sodero
+# guardado en contactos reciben el broadcast, abren la URL, tipean su teléfono.
+# El backend lo normaliza, busca el cliente en la empresa, y devuelve un token
+# personal de corta duración. El frontend usa ese token contra el endpoint
+# existente `/api/publico/c/{token}/respuesta` para registrar la respuesta.
+
+
+@router.post("/b/{token}/identificar", response_model=IdentificarBroadcastOut)
+async def identificar_broadcast(
+    token: str,
+    payload: IdentificarBroadcastIn,
+    settings: SettingsDep,
+    session: SessionDep,
+) -> IdentificarBroadcastOut:
+    empresa_id = verify_broadcast_token(settings, token)
+    telefono_normalizado = normalizar_telefono(payload.telefono)
+
+    await session.execute(text("RESET ROLE"))
+
+    cliente_id = await buscar_cliente_por_telefono(
+        session,
+        empresa_id=empresa_id,
+        telefono=telefono_normalizado,
+    )
+
+    data = await obtener_info_link(session, cliente_id=cliente_id)
+
+    # Token personal de corta duración (1 hora) — solo para esta sesión.
+    cliente_token = sign_link_token(
+        settings,
+        cliente_id=cliente_id,
+        ttl_seconds=60 * 60,
+    )
+
+    _logger.info(
+        "publico.broadcast.identificar",
+        empresa_id=str(empresa_id),
+        cliente_id=str(cliente_id),
+    )
+
+    return IdentificarBroadcastOut(
+        cliente_token=cliente_token,
+        info=LinkPublicoOut(
+            empresa=EmpresaPublica(nombre=data.empresa_nombre),
+            cliente=ClientePublico(
+                nombre_completo=data.cliente_nombre_completo,
+                telefono=data.cliente_telefono,
+            ),
+            zona_nombre=data.zona_nombre,
+            zona_dia_visita=data.zona_dia_visita,
+            productos_habituales=[
+                ProductoHabitualPublico(
+                    producto_id=h.producto_id,
+                    nombre=h.nombre,
+                    cantidad_habitual=h.cantidad_habitual,
+                    es_retornable=h.es_retornable,
+                )
+                for h in data.productos_habituales
+            ],
+        ),
+    )
