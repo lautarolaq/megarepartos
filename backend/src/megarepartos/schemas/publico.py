@@ -55,6 +55,9 @@ class RespuestaIn(BaseModel):
     # Opcional: si la respuesta viene desde una campaña (broadcast o bulk
     # individual), el frontend manda el campana_id para taggear el evento.
     campana_id: str | None = None
+    # Opcional: si el cliente confirmó pese a una zona mismatch detectada en
+    # la landing, se propaga el flag al evento para que el sodero lo vea.
+    zona_mismatch: bool = False
 
 
 class GenerarLinkOut(BaseModel):
@@ -122,8 +125,17 @@ class IdentificarBroadcastOut(BaseModel):
     """Respuesta — devuelve datos del cliente, un token personal de corta
     duración y el `campana_id` para que el frontend pueda taggear la respuesta
     cuando la postee a `/api/publico/c/{token}/respuesta`.
+
+    `zona_mismatch` es true si la campaña era para una zona X pero el cliente
+    pertenece a la zona Y (≠ X). El frontend muestra un aviso al cliente para
+    confirmar que es intencional. Útil para detectar broadcasts cruzados (el
+    sodero mandó link de Norte a alguien de Centro, o alguien forwardeo el
+    link a un amigo de otra zona).
     """
 
     cliente_token: str
     campana_id: str
     info: LinkPublicoOut
+    zona_mismatch: bool = False
+    campana_zona_nombre: str | None = None
+    cliente_zona_nombre: str | None = None

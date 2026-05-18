@@ -43,6 +43,10 @@ export function PublicoLinkPage() {
   // Si el cliente vino desde un broadcast o un bulk-individual, el link trae
   // ?campana=<id> — lo mandamos al POST para que la respuesta quede taggeada.
   const campanaId = searchParams.get("campana");
+  // ?warn=zona_mismatch — el cliente confirmó manualmente que sigue queriendo
+  // pedir aunque la campaña era para otra zona. Mostramos banner + lo pasamos
+  // al backend para que se vea en el dashboard.
+  const zonaMismatch = searchParams.get("warn") === "zona_mismatch";
   const [estado, setEstado] = useState<Estado>("pregunta");
   const [items, setItems] = useState<Record<string, ItemEstado>>({});
   const [observacion, setObservacion] = useState("");
@@ -86,6 +90,7 @@ export function PublicoLinkPage() {
         productos,
         observacion: observacion || null,
         campana_id: campanaId,
+        zona_mismatch: zonaMismatch,
       });
     },
     onSuccess: (_resp, accion) => {
@@ -198,6 +203,14 @@ export function PublicoLinkPage() {
       <div className="w-full max-w-md">
         <p className="text-sm uppercase tracking-wider text-sky-700">{data.empresa.nombre}</p>
         <h1 className="mt-2 text-3xl font-semibold leading-tight">¡Hola, {primerNombre}!</h1>
+
+        {zonaMismatch && (
+          <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            ⚠ Este link era para otra zona. Tu pedido se va a registrar pero con esa nota — el
+            sodero lo va a ver.
+          </div>
+        )}
+
         <p className="mt-4 text-base text-slate-600">
           {cuando} {tieneHabituales ? "Confirmá tu pedido:" : "¿Te llevamos tu pedido?"}
         </p>

@@ -126,6 +126,7 @@ async def post_respuesta(
         productos=productos,
         observacion=payload.observacion,
         campana_id=campana_id,
+        zona_mismatch=payload.zona_mismatch,
     )
 
     _logger.info(
@@ -163,17 +164,22 @@ async def identificar_broadcast(
 
     await session.execute(text("RESET ROLE"))
 
-    # Resolver empresa desde la campaña.
-    empresa_id = (
+    # Resolver empresa + zona de la campaña.
+    campana_row = (
         await session.execute(
-            text("SELECT empresa_id FROM campana WHERE id = :id"),
+            text(
+                "SELECT empresa_id, destinatarios_origen->>'zona_id' AS zona_id "
+                "FROM campana WHERE id = :id"
+            ),
             {"id": campana_id},
         )
-    ).scalar_one_or_none()
-    if empresa_id is None:
+    ).one_or_none()
+    if campana_row is None:
         raise ApiError(
             ErrorCode.RECURSO_NO_ENCONTRADO, "El link no es válido (campaña inexistente)."
         )
+    empresa_id = campana_row.empresa_id
+    campana_zona_id_str = campana_row.zona_id
 
     cliente_id = await buscar_cliente_por_telefono(
         session,
@@ -182,6 +188,28 @@ async def identificar_broadcast(
     )
 
     data = await obtener_info_link(session, cliente_id=cliente_id)
+
+    # Detectar zona mismatch: si la campaña tiene una zona específica y el
+    # cliente pertenece a una zona distinta (o a ninguna), flag para que el
+    # frontend pregunte al cliente si confirma igual.
+    zona_mismatch = False
+    campana_zona_nombre: str | None = None
+    if campana_zona_id_str:
+        zona_row = (
+            await session.execute(
+                text(
+                    "SELECT z.nombre AS campana_zona_nombre, "
+                    "       cl.zona_id::text AS cliente_zona_id "
+                    "FROM cliente cl "
+                    "LEFT JOIN zona z ON z.id = CAST(:czid AS uuid) "
+                    "WHERE cl.id = :cid"
+                ),
+                {"czid": campana_zona_id_str, "cid": cliente_id},
+            )
+        ).one_or_none()
+        if zona_row:
+            campana_zona_nombre = zona_row.campana_zona_nombre
+            zona_mismatch = zona_row.cliente_zona_id != campana_zona_id_str
 
     # Token personal de corta duración (1 hora) — solo para esta sesión.
     cliente_token = sign_link_token(
@@ -195,11 +223,15 @@ async def identificar_broadcast(
         empresa_id=str(empresa_id),
         cliente_id=str(cliente_id),
         campana_id=str(campana_id),
+        zona_mismatch=zona_mismatch,
     )
 
     return IdentificarBroadcastOut(
         cliente_token=cliente_token,
         campana_id=str(campana_id),
+        zona_mismatch=zona_mismatch,
+        campana_zona_nombre=campana_zona_nombre,
+        cliente_zona_nombre=data.zona_nombre,
         info=LinkPublicoOut(
             empresa=EmpresaPublica(nombre=data.empresa_nombre),
             cliente=ClientePublico(

@@ -21,6 +21,9 @@ const STORAGE_KEY = "mr_broadcast_phone";
 interface IdentificarOut {
   cliente_token: string;
   campana_id: string;
+  zona_mismatch: boolean;
+  campana_zona_nombre: string | null;
+  cliente_zona_nombre: string | null;
   info: {
     cliente: { nombre_completo: string };
   };
@@ -31,6 +34,8 @@ export function BroadcastLandingPage() {
   const navigate = useNavigate();
   const [telefono, setTelefono] = useState(() => localStorage.getItem(STORAGE_KEY) ?? "");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Si hay zona mismatch, paramos antes de redirigir y mostramos la advertencia.
+  const [mismatch, setMismatch] = useState<IdentificarOut | null>(null);
 
   const identificar = useMutation({
     mutationFn: async (phone: string) => {
@@ -42,8 +47,10 @@ export function BroadcastLandingPage() {
     },
     onSuccess: (data, phone) => {
       localStorage.setItem(STORAGE_KEY, phone);
-      // Propagamos campana_id por query param para que PublicoLink lo mande
-      // al POST de respuesta y la confirmación quede taggeada con la campaña.
+      if (data.zona_mismatch) {
+        setMismatch(data);
+        return;
+      }
       navigate(`/c/${data.cliente_token}?campana=${data.campana_id}`, { replace: true });
     },
     onError: (err) => {
@@ -52,6 +59,13 @@ export function BroadcastLandingPage() {
       setErrorMsg(apiMsg ?? "No pudimos identificar tu número. Probá de nuevo.");
     },
   });
+
+  function continuarPeseAlMismatch() {
+    if (!mismatch) return;
+    navigate(`/c/${mismatch.cliente_token}?campana=${mismatch.campana_id}&warn=zona_mismatch`, {
+      replace: true,
+    });
+  }
 
   // Auto-intentar si tenemos teléfono guardado de antes (solo una vez por mount).
   const triedAutoRef = useRef(false);
@@ -79,6 +93,46 @@ export function BroadcastLandingPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-rose-50 px-4 text-rose-800">
         <p>Link inválido.</p>
+      </main>
+    );
+  }
+
+  if (mismatch) {
+    return (
+      <main className="flex min-h-screen flex-col items-center bg-amber-50 px-4 py-10 text-slate-800">
+        <div className="w-full max-w-md">
+          <h1 className="text-2xl font-semibold leading-tight">⚠ Algo no cierra</h1>
+          <p className="mt-4 text-base text-slate-700">
+            Este pedido era para clientes de la zona{" "}
+            <strong>{mismatch.campana_zona_nombre ?? "—"}</strong>, pero vos figurás en la zona{" "}
+            <strong>{mismatch.cliente_zona_nombre ?? "sin asignar"}</strong>.
+          </p>
+          <p className="mt-3 text-sm text-slate-600">
+            Probablemente alguien te reenvió el link. Si querés confirmar igual lo registramos, y el
+            sodero va a verlo con esta advertencia.
+          </p>
+
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={continuarPeseAlMismatch}
+              className="rounded-xl bg-emerald-600 px-6 py-4 text-base font-semibold text-white shadow-md hover:bg-emerald-700 active:bg-emerald-800"
+            >
+              Sí, confirmar igual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMismatch(null);
+                setTelefono("");
+                localStorage.removeItem(STORAGE_KEY);
+              }}
+              className="rounded-xl border-2 border-slate-300 bg-white px-6 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              No, hubo un error
+            </button>
+          </div>
+        </div>
       </main>
     );
   }

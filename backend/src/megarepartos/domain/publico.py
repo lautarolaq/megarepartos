@@ -191,6 +191,7 @@ async def registrar_respuesta(
     productos: list[ProductoRespuesta],
     observacion: str | None,
     campana_id: uuid.UUID | None = None,
+    zona_mismatch: bool = False,
 ) -> uuid.UUID:
     """REQ-LINK-005/006: resuelve empresa del cliente y persiste evento_dominio.
 
@@ -256,5 +257,7 @@ async def registrar_respuesta(
         ev.detalles["observacion"] = observacion
         if campana_id_validada is not None:
             ev.detalles["campana_id"] = str(campana_id_validada)
+        if zona_mismatch:
+            ev.detalles["zona_mismatch"] = True
 
     return empresa_id
