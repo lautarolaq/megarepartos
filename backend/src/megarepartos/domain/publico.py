@@ -20,9 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from megarepartos.domain._events import event_recorder
 from megarepartos.infra.errors import ApiError, ErrorCode
-from megarepartos.models.cliente import Cliente, ProductoHabitual
+from megarepartos.models.cliente import Cliente
 from megarepartos.models.empresa import Empresa
-from megarepartos.models.producto import Producto
 from megarepartos.models.zona import Zona
 
 
@@ -138,17 +137,31 @@ async def obtener_info_link(
             zona_nombre = zona.nombre
             zona_dia_visita = zona.dia_visita
 
+    # Todos los productos activos de la empresa, con la cantidad habitual del
+    # cliente (0 si no es habitual). Habituales aparecen primero, después el
+    # resto del catálogo — el cliente puede sumar productos no habituales si
+    # esta semana quiere algo extra.
     rows = (
         await session.execute(
-            select(
-                ProductoHabitual.producto_id,
-                ProductoHabitual.cantidad,
-                Producto.nombre,
-                Producto.es_retornable,
-            )
-            .join(Producto, Producto.id == ProductoHabitual.producto_id)
-            .where(ProductoHabitual.cliente_id == cliente_id, Producto.activo.is_(True))
-            .order_by(Producto.nombre.asc())
+            text(
+                """
+                SELECT
+                    p.id::text AS producto_id,
+                    p.nombre,
+                    p.es_retornable,
+                    COALESCE(h.cantidad, 0) AS cantidad_habitual,
+                    (h.cantidad IS NOT NULL) AS es_habitual
+                FROM producto p
+                LEFT JOIN producto_habitual h
+                  ON h.producto_id = p.id AND h.cliente_id = :cliente_id
+                WHERE p.empresa_id = :empresa_id AND p.activo = true
+                ORDER BY
+                    (h.cantidad IS NULL) ASC,
+                    p.orden_display ASC NULLS LAST,
+                    p.nombre ASC
+                """
+            ),
+            {"cliente_id": cliente_id, "empresa_id": cliente.empresa_id},
         )
     ).all()
 
@@ -160,10 +173,10 @@ async def obtener_info_link(
         zona_dia_visita=zona_dia_visita,
         productos_habituales=[
             HabitualPublico(
-                producto_id=str(r[0]),
-                cantidad_habitual=r[1],
-                nombre=r[2],
-                es_retornable=r[3],
+                producto_id=r.producto_id,
+                cantidad_habitual=r.cantidad_habitual,
+                nombre=r.nombre,
+                es_retornable=r.es_retornable,
             )
             for r in rows
         ],
