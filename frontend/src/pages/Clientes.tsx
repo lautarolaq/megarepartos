@@ -545,139 +545,87 @@ function CampanaModal({
               </>
             )}
 
-            {modo === "broadcast" && (
+            {modo === "broadcast" && !broadcastUrl && (
               <>
-                <p className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-900">
-                  El broadcast manda <strong>UN solo link genérico</strong> a hasta 256 contactos de
-                  tu WhatsApp. Solo lo reciben los clientes que tienen tu número guardado. Cuando
-                  abren el link tipean su teléfono y se identifican.
-                </p>
+                <Input
+                  placeholder={`Nombre (ej: ${defaultNombre("Broadcast", zonaId)})`}
+                  value={campanaNombre}
+                  onChange={(e) => setCampanaNombre(e.target.value)}
+                />
+                <select
+                  value={zonaId}
+                  onChange={(e) => setZonaId(e.target.value)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                >
+                  <option value="">Sin zona</option>
+                  {zonas.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.nombre}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  rows={4}
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value)}
+                  placeholder="Tu mensaje. Poné {link} donde quieras que vaya la URL."
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button variant="ghost" onClick={onClose}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={() => generarBroadcast.mutate()}
+                    disabled={generarBroadcast.isPending || !mensaje.trim()}
+                  >
+                    {generarBroadcast.isPending ? "Generando…" : "Generar link"}
+                  </Button>
+                </div>
+              </>
+            )}
 
-                {!broadcastUrl && (
-                  <>
-                    <Input
-                      placeholder={`Nombre de la campaña (ej: ${defaultNombre("Broadcast", zonaId)})`}
-                      value={campanaNombre}
-                      onChange={(e) => setCampanaNombre(e.target.value)}
-                    />
-                    <label className="flex flex-col gap-1 text-sm">
-                      <span className="font-medium text-slate-700">Zona (opcional)</span>
-                      <select
-                        value={zonaId}
-                        onChange={(e) => setZonaId(e.target.value)}
-                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                      >
-                        <option value="">Sin zona específica</option>
-                        {zonas.map((z) => (
-                          <option key={z.id} value={z.id}>
-                            {z.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm">
-                      <span className="font-medium text-slate-700">
-                        Mensaje (usá {"{link}"} donde quieras que vaya la URL)
-                      </span>
-                      <textarea
-                        rows={4}
-                        value={mensaje}
-                        onChange={(e) => setMensaje(e.target.value)}
-                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                      />
-                      <span className="text-xs text-slate-500">
-                        Tip: no uses {"{nombre}"} acá — el mensaje va igual a todos.
-                      </span>
-                    </label>
-                    <div className="mt-2 flex justify-end gap-2">
-                      <Button variant="ghost" onClick={onClose}>
-                        Cancelar
-                      </Button>
-                      <Button
-                        onClick={() => generarBroadcast.mutate()}
-                        disabled={generarBroadcast.isPending}
-                      >
-                        {generarBroadcast.isPending ? "Generando…" : "Generar link broadcast"}
-                      </Button>
-                    </div>
-                  </>
+            {modo === "broadcast" && broadcastUrl && (
+              <>
+                {broadcastListHint ? (
+                  <p className="text-base">
+                    Mandalo a tu lista <strong>{broadcastListHint}</strong> en WhatsApp.
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-600">
+                    Mandá este mensaje a tu lista de difusión desde el celu.
+                  </p>
                 )}
 
-                {broadcastUrl && (
-                  <>
-                    {broadcastListHint && (
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-                        📋 Mandalo a la lista de WhatsApp: <strong>{broadcastListHint}</strong>
-                      </div>
-                    )}
-                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-                      <p className="font-medium text-slate-700">Mensaje listo para pegar:</p>
-                      <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-white p-2 text-xs text-slate-800">
-                        {mensajeBroadcast}
-                      </pre>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Button onClick={() => copiar(mensajeBroadcast, "mensaje")}>
-                          {broadcastCopied === "mensaje" ? "✓ Copiado" : "Copiar mensaje completo"}
-                        </Button>
-                        <Button variant="ghost" onClick={() => copiar(broadcastUrl, "link")}>
-                          {broadcastCopied === "link" ? "✓ Copiado" : "Solo el link"}
-                        </Button>
-                      </div>
-                    </div>
+                <pre className="whitespace-pre-wrap break-words rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800">
+                  {mensajeBroadcast}
+                </pre>
 
-                    {canShare && (
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-sm font-medium text-emerald-900">
-                          📱 Compartir directo desde tu celu
-                        </div>
-                        <p className="mt-1 text-xs text-emerald-800">
-                          Abre el chooser nativo del sistema con el mensaje pre-cargado. Picá
-                          WhatsApp → la lista de difusión → enviar.
-                        </p>
-                        <div className="mt-2">
-                          <Button onClick={() => shareNativo(mensajeBroadcast)}>
-                            <Send size={14} /> Compartir por WhatsApp
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                <div className="flex flex-wrap gap-2">
+                  {canShare ? (
+                    <Button onClick={() => shareNativo(mensajeBroadcast)}>
+                      <Send size={14} /> Compartir por WhatsApp
+                    </Button>
+                  ) : (
+                    <Button onClick={() => copiar(mensajeBroadcast, "mensaje")}>
+                      {broadcastCopied === "mensaje" ? "✓ Copiado" : "Copiar mensaje"}
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => copiar(broadcastUrl, "link")}
+                    className="text-xs text-slate-500 hover:text-slate-700 hover:underline"
+                  >
+                    {broadcastCopied === "link" ? "✓ link copiado" : "solo el link"}
+                  </button>
+                </div>
 
-                    <ol className="list-decimal space-y-1 pl-5 text-xs text-slate-600">
-                      <li>
-                        Asegurate de tener la lista de difusión creada en WhatsApp (celu o WhatsApp
-                        Web).
-                      </li>
-                      {canShare ? (
-                        <li>
-                          Toca <strong>"Compartir por WhatsApp"</strong> arriba → seleccioná tu
-                          lista de difusión → enviá.
-                        </li>
-                      ) : (
-                        <>
-                          <li>
-                            Hacé <strong>"Copiar mensaje completo"</strong> arriba.
-                          </li>
-                          <li>
-                            Andá a tu celu, abrí la lista de difusión, pegá y enviá. (En desktop no
-                            se puede mandar broadcasts, solo desde celu).
-                          </li>
-                        </>
-                      )}
-                    </ol>
-
-                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      ⚠ Recordá: solo reciben el broadcast los que tienen tu número guardado en su
-                      celu. Para clientes que no te tienen agendado, usá el modo Individual.
-                    </p>
-
-                    <div className="mt-2 flex justify-between">
-                      <Button variant="ghost" onClick={() => setBroadcastUrl(null)}>
-                        ← Volver
-                      </Button>
-                      <Button onClick={onClose}>Cerrar</Button>
-                    </div>
-                  </>
-                )}
+                <div className="mt-2 flex justify-between">
+                  <Button variant="ghost" onClick={() => setBroadcastUrl(null)}>
+                    ← Otra campaña
+                  </Button>
+                  <Button onClick={onClose}>Listo</Button>
+                </div>
               </>
             )}
           </>
