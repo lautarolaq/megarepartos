@@ -22,4 +22,8 @@ class Zona(Base):
     dia_visita: Mapped[str | None] = mapped_column(String(16), nullable=True)
     camioneta_asignada: Mapped[str | None] = mapped_column(String(128), nullable=True)
     color_display: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Nombre exacto de la lista de difusión en WhatsApp asociada a esta zona.
+    # Es solo un hint visual para el sodero — WhatsApp no expone broadcast lists
+    # vía API, así que no podemos enviar programáticamente.
+    broadcast_list_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

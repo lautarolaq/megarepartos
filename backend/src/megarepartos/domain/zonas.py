@@ -51,6 +51,7 @@ async def crear_zona(
     dia_visita: str | None,
     camioneta_asignada: str | None,
     color_display: str | None,
+    broadcast_list_name: str | None = None,
 ) -> Zona:
     """REQ-ZONA-004."""
     zona = Zona(
@@ -59,6 +60,7 @@ async def crear_zona(
         dia_visita=dia_visita,
         camioneta_asignada=camioneta_asignada,
         color_display=color_display,
+        broadcast_list_name=broadcast_list_name,
         activo=True,
     )
     session.add(zona)

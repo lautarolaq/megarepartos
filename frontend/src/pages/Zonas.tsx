@@ -13,6 +13,7 @@ interface Zona {
   dia_visita: string | null;
   camioneta_asignada: string | null;
   color_display: string | null;
+  broadcast_list_name: string | null;
   activo: boolean;
 }
 
@@ -133,6 +134,7 @@ function EditarZonaModal({ zona, onClose }: { zona: Zona | null; onClose: () => 
   const [dia, setDia] = useState<Dia | "">("");
   const [camioneta, setCamioneta] = useState("");
   const [color, setColor] = useState("#0ea5e9");
+  const [broadcastListName, setBroadcastListName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -141,6 +143,7 @@ function EditarZonaModal({ zona, onClose }: { zona: Zona | null; onClose: () => 
       setDia((zona.dia_visita as Dia | null) ?? "");
       setCamioneta(zona.camioneta_asignada ?? "");
       setColor(zona.color_display ?? "#0ea5e9");
+      setBroadcastListName(zona.broadcast_list_name ?? "");
       setError(null);
     }
   }, [zona]);
@@ -153,6 +156,7 @@ function EditarZonaModal({ zona, onClose }: { zona: Zona | null; onClose: () => 
         dia_visita: dia || null,
         camioneta_asignada: camioneta || null,
         color_display: color || null,
+        broadcast_list_name: broadcastListName.trim() || null,
       });
     },
     onSuccess: () => {
@@ -204,6 +208,17 @@ function EditarZonaModal({ zona, onClose }: { zona: Zona | null; onClose: () => 
             className="h-10 w-20 cursor-pointer rounded-md border border-slate-300"
           />
         </label>
+        <Input
+          label="Lista de difusión de WhatsApp (opcional)"
+          name="broadcast_list_name"
+          placeholder='Ej: "Norte Miércoles"'
+          value={broadcastListName}
+          onChange={(e) => setBroadcastListName(e.target.value)}
+        />
+        <p className="-mt-2 text-xs text-slate-500">
+          Nombre exacto de tu lista en WhatsApp. Lo usamos como hint cuando mandes una campaña
+          broadcast a esta zona.
+        </p>
         {error && <p className="text-sm text-rose-600">{error}</p>}
         <div className="mt-2 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
@@ -227,6 +242,7 @@ function CrearZonaModal({ open, onClose }: { open: boolean; onClose: () => void 
   const [dia, setDia] = useState<Dia | "">("");
   const [camioneta, setCamioneta] = useState("");
   const [color, setColor] = useState("#0ea5e9");
+  const [broadcastListName, setBroadcastListName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const crear = useMutation({
@@ -236,6 +252,7 @@ function CrearZonaModal({ open, onClose }: { open: boolean; onClose: () => void 
         dia_visita: dia || null,
         camioneta_asignada: camioneta || null,
         color_display: color || null,
+        broadcast_list_name: broadcastListName.trim() || null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["zonas"] });
@@ -243,6 +260,7 @@ function CrearZonaModal({ open, onClose }: { open: boolean; onClose: () => void 
       setDia("");
       setCamioneta("");
       setColor("#0ea5e9");
+      setBroadcastListName("");
       setError(null);
       onClose();
     },
@@ -293,6 +311,13 @@ function CrearZonaModal({ open, onClose }: { open: boolean; onClose: () => void 
             className="h-10 w-20 cursor-pointer rounded-md border border-slate-300"
           />
         </label>
+        <Input
+          label="Lista de difusión de WhatsApp (opcional)"
+          name="broadcast_list_name"
+          placeholder='Ej: "Norte Miércoles"'
+          value={broadcastListName}
+          onChange={(e) => setBroadcastListName(e.target.value)}
+        />
         {error && <p className="text-sm text-rose-600">{error}</p>}
         <div className="mt-2 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>

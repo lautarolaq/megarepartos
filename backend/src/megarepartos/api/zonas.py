@@ -69,6 +69,7 @@ async def crear(
         dia_visita=payload.dia_visita,
         camioneta_asignada=payload.camioneta_asignada,
         color_display=payload.color_display,
+        broadcast_list_name=payload.broadcast_list_name,
     )
     return ZonaOut.model_validate(zona)
 

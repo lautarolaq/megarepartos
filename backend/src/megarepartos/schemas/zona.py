@@ -15,6 +15,7 @@ class ZonaCreate(BaseModel):
     dia_visita: DiaSemana | None = None
     camioneta_asignada: str | None = Field(default=None, max_length=128)
     color_display: str | None = Field(default=None, max_length=16)
+    broadcast_list_name: str | None = Field(default=None, max_length=128)
 
 
 class ZonaUpdate(BaseModel):
@@ -22,6 +23,7 @@ class ZonaUpdate(BaseModel):
     dia_visita: DiaSemana | None = None
     camioneta_asignada: str | None = Field(default=None, max_length=128)
     color_display: str | None = Field(default=None, max_length=16)
+    broadcast_list_name: str | None = Field(default=None, max_length=128)
     activo: bool | None = None
 
 
@@ -33,6 +35,7 @@ class ZonaOut(BaseModel):
     dia_visita: str | None
     camioneta_asignada: str | None
     color_display: str | None
+    broadcast_list_name: str | None
     activo: bool
 
 

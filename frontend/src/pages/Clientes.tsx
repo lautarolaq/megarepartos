@@ -34,6 +34,7 @@ interface Zona {
   nombre: string;
   dia_visita: string | null;
   color_display: string | null;
+  broadcast_list_name: string | null;
   activo: boolean;
 }
 
@@ -332,6 +333,11 @@ function CampanaModal({
   // como destino). En desktop no está disponible — usamos copy/paste.
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
+  // Si la zona seleccionada tiene una lista de difusión asociada, mostramos
+  // un hint al sodero para que sepa qué lista pickear en WhatsApp.
+  const zonaSeleccionada = zonas.find((z) => z.id === zonaId);
+  const broadcastListHint = zonaSeleccionada?.broadcast_list_name ?? null;
+
   // Resetear estado SOLO cuando el modal se abre. Si incluimos mensajeBase en las
   // deps, la response de /api/empresa/me llegando después de "Generar links"
   // reseteaba items=null y volvíamos al paso 1 perdiendo los links generados.
@@ -599,6 +605,11 @@ function CampanaModal({
 
                 {broadcastUrl && (
                   <>
+                    {broadcastListHint && (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                        📋 Mandalo a la lista de WhatsApp: <strong>{broadcastListHint}</strong>
+                      </div>
+                    )}
                     <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
                       <p className="font-medium text-slate-700">Mensaje listo para pegar:</p>
                       <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-white p-2 text-xs text-slate-800">
