@@ -329,10 +329,6 @@ function CampanaModal({
   const [broadcastUrl, setBroadcastUrl] = useState<string | null>(null);
   const [broadcastCopied, setBroadcastCopied] = useState<"link" | "mensaje" | null>(null);
   const [campanaNombre, setCampanaNombre] = useState<string>("");
-  // Web Share API: en mobile esto abre el share sheet nativo (WhatsApp aparece
-  // como destino). En desktop no está disponible — usamos copy/paste.
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
-
   // Si la zona seleccionada tiene una lista de difusión asociada, mostramos
   // un hint al sodero para que sepa qué lista pickear en WhatsApp.
   const zonaSeleccionada = zonas.find((z) => z.id === zonaId);
@@ -417,16 +413,6 @@ function CampanaModal({
       // navigator.clipboard puede no estar disponible en contextos no-https.
       // Fallback: seleccionar el contenido del textarea para copy manual.
       window.prompt("Copiá este texto:", text);
-    }
-  }
-
-  async function shareNativo(text: string) {
-    try {
-      await navigator.share({ text });
-    } catch (e) {
-      // El user puede cancelar el share sheet — no lo tratamos como error.
-      // eslint-disable-next-line no-console
-      console.debug("share cancelado:", e);
     }
   }
 
@@ -592,7 +578,7 @@ function CampanaModal({
                   </p>
                 ) : (
                   <p className="text-sm text-slate-600">
-                    Mandá este mensaje a tu lista de difusión desde el celu.
+                    Copiá el mensaje y pegalo en tu lista de difusión de WhatsApp.
                   </p>
                 )}
 
@@ -601,22 +587,12 @@ function CampanaModal({
                 </pre>
 
                 <div className="flex flex-wrap gap-2">
-                  {canShare ? (
-                    <Button onClick={() => shareNativo(mensajeBroadcast)}>
-                      <Send size={14} /> Compartir por WhatsApp
-                    </Button>
-                  ) : (
-                    <Button onClick={() => copiar(mensajeBroadcast, "mensaje")}>
-                      {broadcastCopied === "mensaje" ? "✓ Copiado" : "Copiar mensaje"}
-                    </Button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => copiar(broadcastUrl, "link")}
-                    className="text-xs text-slate-500 hover:text-slate-700 hover:underline"
-                  >
-                    {broadcastCopied === "link" ? "✓ link copiado" : "solo el link"}
-                  </button>
+                  <Button onClick={() => copiar(mensajeBroadcast, "mensaje")}>
+                    {broadcastCopied === "mensaje" ? "✓ Copiado" : "Copiar mensaje completo"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => copiar(broadcastUrl, "link")}>
+                    {broadcastCopied === "link" ? "✓ Link copiado" : "Copiar solo el link"}
+                  </Button>
                 </div>
 
                 <div className="mt-2 flex justify-between">
