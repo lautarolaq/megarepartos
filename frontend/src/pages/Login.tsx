@@ -14,10 +14,7 @@ export function LoginPage() {
             Iniciar sesión con Google
           </Button>
         </div>
-        <p className="mt-6 text-xs text-slate-400">
-          Al continuar aceptás los términos de uso. Asegurate de tener el backend corriendo en
-          localhost:8000 con OAuth configurado.
-        </p>
+        <p className="mt-6 text-xs text-slate-400">Al continuar aceptás los términos de uso.</p>
       </div>
     </main>
   );
