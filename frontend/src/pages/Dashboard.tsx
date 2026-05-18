@@ -15,7 +15,6 @@ import {
   Truck,
   User,
   Users,
-  Warehouse,
   X as XIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -87,9 +86,6 @@ export function DashboardLayout() {
         </NavItem>
         <NavItem to="/dashboard/productos" icon={<Package size={16} />}>
           Productos
-        </NavItem>
-        <NavItem to="/dashboard/envases" icon={<Warehouse size={16} />}>
-          Envases
         </NavItem>
         <NavItem to="/dashboard/zonas" icon={<Truck size={16} />}>
           Zonas

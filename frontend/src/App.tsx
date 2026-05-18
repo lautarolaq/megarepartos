@@ -5,7 +5,6 @@ import { ClienteDetallePage } from "@/pages/ClienteDetalle";
 import { ClientesPage } from "@/pages/Clientes";
 import { DashboardIndex, DashboardLayout } from "@/pages/Dashboard";
 import { EmpresaPage } from "@/pages/Empresa";
-import { EnvasesPage } from "@/pages/Envases";
 import { LoginPage } from "@/pages/Login";
 import { PedidosPage } from "@/pages/Pedidos";
 import { PendientesPage } from "@/pages/Pendientes";
@@ -45,7 +44,6 @@ export default function App() {
         <Route path="pedidos" element={<PedidosPage />} />
         <Route path="pendientes" element={<PendientesPage />} />
         <Route path="productos" element={<ProductosPage />} />
-        <Route path="envases" element={<EnvasesPage />} />
         <Route path="zonas" element={<ZonasPage />} />
         <Route path="clientes" element={<ClientesPage />} />
         <Route path="clientes/:id" element={<ClienteDetallePage />} />
