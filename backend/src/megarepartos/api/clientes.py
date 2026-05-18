@@ -322,7 +322,8 @@ async def generar_link_broadcast(
     campaña → visible/filtrable en `/dashboard/campanas`.
     """
     zona_id: uuid.UUID | None = None
-    if payload.zona_id and payload.zona_id != "__none__":
+    sin_zona = payload.zona_id == "__none__"
+    if payload.zona_id and not sin_zona:
         try:
             zona_id = uuid.UUID(payload.zona_id)
         except ValueError:
@@ -337,6 +338,26 @@ async def generar_link_broadcast(
         zona_id=zona_id,
         mensaje=payload.mensaje,
     )
+
+    # Generar `link_generado` events para los clientes del scope (zona o todos)
+    # taggeados con campana_id, así aparecen en /dashboard/pendientes hasta que
+    # confirmen. Para broadcast no sabemos quién recibió realmente, pero
+    # mostrar todos como pendientes da al sodero una to-do list accionable.
+    clientes = await listar_clientes_para_links(
+        session,
+        empresa_id=admin_claims.empresa_id,
+        zona_id=zona_id,
+        sin_zona=sin_zona,
+    )
+    for c in clientes:
+        await registrar_link_generado(
+            session,
+            empresa_id=admin_claims.empresa_id,
+            usuario_id=admin_claims.sub,
+            cliente_id=c.id,
+            campana_id=campana.id,
+        )
+
     token = sign_broadcast_token(settings, campana_id=campana.id)
     return GenerarLinkBroadcastOut(
         url=f"{settings.frontend_base_url}/b/{token}",
