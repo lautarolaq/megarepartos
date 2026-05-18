@@ -66,14 +66,19 @@ async def buscar_cliente_por_telefono(
 
     Levanta `RECURSO_NO_ENCONTRADO` si no hay match.
     """
-    # 1) Match exacto.
+    # 1) Match exacto. Limit 1 porque puede haber múltiples clientes con el
+    # mismo teléfono (familia compartiendo número, sodero que creó dups, etc).
+    # En ese caso devolvemos el primero — el sodero gestiona el conflicto
+    # desde el dashboard si quiere.
     cliente_id = (
         await session.execute(
-            select(Cliente.id).where(
+            select(Cliente.id)
+            .where(
                 Cliente.empresa_id == empresa_id,
                 Cliente.telefono == telefono,
                 Cliente.activo.is_(True),
             )
+            .limit(1)
         )
     ).scalar_one_or_none()
     if cliente_id is not None:
