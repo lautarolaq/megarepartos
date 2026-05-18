@@ -6,7 +6,9 @@
 // y este content script responde con la versión, así la app sabe que la
 // extensión está instalada y puede ofrecer "envío automático".
 
-const ALLOWED_TYPES = new Set(["MR_PING", "MR_SEND_ONE"]);
+const ALLOWED_TYPES = new Set(["MR_PING", "MR_SEND_ONE", "MR_SEND_BROADCAST"]);
+// Campos que reenviamos del page al background (whitelist explícita).
+const FORWARD_FIELDS = ["phone", "message", "listName"];
 
 window.addEventListener("message", async (event) => {
   if (event.source !== window) return;
@@ -15,12 +17,12 @@ window.addEventListener("message", async (event) => {
   if (!ALLOWED_TYPES.has(data.type)) return;
 
   const reqId = data.reqId;
+  const payload = { type: data.type };
+  for (const k of FORWARD_FIELDS) {
+    if (data[k] !== undefined) payload[k] = data[k];
+  }
   try {
-    const resp = await chrome.runtime.sendMessage({
-      type: data.type,
-      phone: data.phone,
-      message: data.message,
-    });
+    const resp = await chrome.runtime.sendMessage(payload);
     window.postMessage(
       { source: "mr-ext", reqId, type: data.type + "_RESP", payload: resp },
       "*",

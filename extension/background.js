@@ -105,6 +105,57 @@ async function sendOne(phone, message) {
   }
 }
 
+async function sendBroadcast(listName, message) {
+  if (!listName || !String(listName).trim()) {
+    return { ok: false, error: "Nombre de lista vacío." };
+  }
+  if (!message || !String(message).trim()) {
+    return { ok: false, error: "Mensaje vacío." };
+  }
+
+  // Abrir/encontrar la tab de WA Web. A diferencia del flujo 1-on-1, NO
+  // navegamos a /send?phone=... — el broadcast se manda desde la home y
+  // necesitamos la barra de búsqueda visible.
+  try {
+    await findOrOpenWhatsAppTab();
+  } catch (e) {
+    return { ok: false, error: `No pude abrir WhatsApp Web: ${e?.message ?? e}` };
+  }
+
+  // Si la tab está en /send (por un envío 1-on-1 anterior), volver a la home
+  // donde está la barra de búsqueda.
+  try {
+    const tab = await chrome.tabs.get(state.waTabId);
+    if (tab.url && /\/send\b/.test(tab.url)) {
+      await chrome.tabs.update(state.waTabId, { url: `${WA_BASE}/`, active: false });
+      await waitForTabComplete(state.waTabId, 30_000);
+      await safeSleep(2500);
+    }
+  } catch {
+    // no-op, dejamos que wa-content reporte si no aparece la barra
+  }
+
+  // Pedirle al content script que haga el search + click + paste + send.
+  try {
+    const resp = await Promise.race([
+      chrome.tabs.sendMessage(state.waTabId, {
+        type: "MR_SEND_BROADCAST",
+        listName,
+        message,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Timeout esperando respuesta de wa-content.js (60s).")),
+          60_000,
+        ),
+      ),
+    ]);
+    return resp ?? { ok: false, error: "Sin respuesta del content script." };
+  } catch (e) {
+    return { ok: false, error: `Content script no responde: ${e?.message ?? e}` };
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "MR_PING") {
     sendResponse({ ok: true, version: chrome.runtime.getManifest().version });
@@ -113,6 +164,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "MR_SEND_ONE") {
     sendOne(msg.phone, msg.message)
+      .then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) }));
+    return true; // async response
+  }
+
+  if (msg?.type === "MR_SEND_BROADCAST") {
+    sendBroadcast(msg.listName, msg.message)
       .then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) }));
     return true; // async response

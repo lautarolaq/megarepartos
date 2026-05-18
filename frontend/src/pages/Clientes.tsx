@@ -2,7 +2,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
-import { getExtensionVersion, isExtensionInstalled, sendViaExtension } from "@/lib/extension";
+import {
+  getExtensionVersion,
+  isExtensionInstalled,
+  sendBroadcastViaExtension,
+  sendViaExtension,
+} from "@/lib/extension";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Package, Pencil, RotateCcw, Send, Trash2, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -320,6 +325,15 @@ function CampanaModal({
   const [modo, setModo] = useState<"individual" | "broadcast">("individual");
   const [broadcastUrl, setBroadcastUrl] = useState<string | null>(null);
   const [broadcastCopied, setBroadcastCopied] = useState<"link" | "mensaje" | null>(null);
+  // Nombre de la lista de difusión en WhatsApp Web (persistido en localStorage
+  // para auto-completar la próxima vez).
+  const [broadcastListName, setBroadcastListName] = useState<string>(
+    () => localStorage.getItem("mr_broadcast_list_name") ?? "",
+  );
+  const [broadcastAutoEnviando, setBroadcastAutoEnviando] = useState(false);
+  const [broadcastAutoResult, setBroadcastAutoResult] = useState<
+    { ok: true } | { ok: false; error: string } | null
+  >(null);
 
   // Resetear estado SOLO cuando el modal se abre. Si incluimos mensajeBase en las
   // deps, la response de /api/empresa/me llegando después de "Generar links"
@@ -335,6 +349,8 @@ function CampanaModal({
       setModo("individual");
       setBroadcastUrl(null);
       setBroadcastCopied(null);
+      setBroadcastAutoEnviando(false);
+      setBroadcastAutoResult(null);
     }
   }, [open, zonaIdInicial]);
 
@@ -390,6 +406,23 @@ function CampanaModal({
       // Fallback: seleccionar el contenido del textarea para copy manual.
       window.prompt("Copiá este texto:", text);
     }
+  }
+
+  async function enviarBroadcastAuto() {
+    const nombre = broadcastListName.trim();
+    if (!nombre) {
+      setBroadcastAutoResult({ ok: false, error: "Ingresá el nombre exacto de la lista." });
+      return;
+    }
+    if (!broadcastUrl) return;
+    localStorage.setItem("mr_broadcast_list_name", nombre);
+    setBroadcastAutoEnviando(true);
+    setBroadcastAutoResult(null);
+    const resp = await sendBroadcastViaExtension(nombre, mensajeBroadcast);
+    setBroadcastAutoEnviando(false);
+    setBroadcastAutoResult(
+      resp.ok ? { ok: true } : { ok: false, error: resp.error ?? "Error desconocido." },
+    );
   }
 
   function mensajeFor(item: LinkBulkItem): string {
@@ -557,11 +590,56 @@ function CampanaModal({
                       </div>
                     </div>
 
+                    {extensionDisponible && (
+                      <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
+                        <div className="text-sm font-medium text-sky-900">
+                          ⚡ Enviar broadcast automático
+                        </div>
+                        <p className="mt-1 text-xs text-sky-800">
+                          Si ya tenés una lista de difusión creada en WhatsApp Web con todos los
+                          destinatarios, escribí el nombre exacto y la extensión se encarga del
+                          resto.
+                        </p>
+                        <Input
+                          className="mt-2"
+                          placeholder='Ej: "Clientes Megarepartos"'
+                          value={broadcastListName}
+                          onChange={(e) => setBroadcastListName(e.target.value)}
+                          disabled={broadcastAutoEnviando}
+                        />
+                        <div className="mt-2">
+                          <Button
+                            onClick={enviarBroadcastAuto}
+                            disabled={broadcastAutoEnviando || !broadcastListName.trim()}
+                          >
+                            <Zap size={14} />
+                            {broadcastAutoEnviando ? "Enviando…" : "Enviar broadcast ahora"}
+                          </Button>
+                        </div>
+                        {broadcastAutoResult?.ok === true && (
+                          <p className="mt-2 rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-900">
+                            ✓ Broadcast enviado.
+                          </p>
+                        )}
+                        {broadcastAutoResult?.ok === false && (
+                          <p className="mt-2 rounded bg-rose-100 px-2 py-1 text-xs text-rose-900">
+                            ✗ {broadcastAutoResult.error}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <ol className="list-decimal space-y-1 pl-5 text-xs text-slate-600">
                       <li>Abrí WhatsApp Web (o WhatsApp en el celu).</li>
                       <li>Menú ⋮ → "Nueva difusión" / "Nueva lista de difusión".</li>
                       <li>Seleccioná los clientes destinatarios (máx 256).</li>
-                      <li>Pegá el mensaje copiado y enviá.</li>
+                      <li>
+                        {extensionDisponible ? (
+                          <>Una vez creada, escribí su nombre arriba y "Enviar broadcast ahora".</>
+                        ) : (
+                          <>Pegá el mensaje copiado y enviá.</>
+                        )}
+                      </li>
                     </ol>
 
                     <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">

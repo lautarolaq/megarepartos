@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Megarepartos",
   "short_name": "Megarepartos",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Envía links a tus clientes desde WhatsApp Web sin tocar enviar 50 veces.",
   "icons": {
     "128": "icons/icon128.png"
